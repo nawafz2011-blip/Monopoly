@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f5132">
+  <meta name="theme-color" content="#0b3326">
   <title>مساعد البنك</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Tajawal:wght@500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
   <script>
     // يعرف الجهاز قبل لا تنرسم الصفحة: phone / tablet / laptop
     (function () {
@@ -29,15 +29,15 @@
 <body>
   <header class="top">
     <div class="title">
-      <span class="logo">🏦</span>
+      <span class="logo" data-ic="bank"></span>
       <div>
         <b id="gameName">مساعد البنك</b>
         <small id="gameSub"></small>
       </div>
     </div>
     <div class="top-btns">
-      <button class="icon-btn" id="calcBtn" title="الآلة الحاسبة">🧮</button>
-      <button class="icon-btn" id="undoBtn" title="تراجع عن آخر عملية">↩︎ تراجع</button>
+      <button class="icon-btn" id="calcBtn" title="الآلة الحاسبة"><span data-ic="calc"></span></button>
+      <button class="icon-btn" id="undoBtn" title="تراجع عن آخر عملية"><span data-ic="undo"></span>تراجع</button>
     </div>
   </header>
 
@@ -45,11 +45,11 @@
 
 
   <nav class="tabs">
-    <button data-tab="players" class="active"><span>👥</span>اللاعبين<kbd hidden>1</kbd></button>
-    <button data-tab="props"><span>🃏</span>البطاقات<kbd hidden>2</kbd></button>
-    <button data-tab="log"><span>📜</span>السجل<kbd hidden>3</kbd></button>
-    <button data-tab="more"><span>⚙️</span>المزيد<kbd hidden>4</kbd></button>
-    <div class="kbd-hint">⌨️ اختصارات:<br>1 – 4 التبويبات<br>Ctrl+Z تراجع<br>C الآلة الحاسبة<br>Esc إغلاق</div>
+    <button data-tab="players" class="active"><span data-ic="users"></span>اللاعبين<kbd hidden>1</kbd></button>
+    <button data-tab="props"><span data-ic="card"></span>البطاقات<kbd hidden>2</kbd></button>
+    <button data-tab="log"><span data-ic="list"></span>السجل<kbd hidden>3</kbd></button>
+    <button data-tab="more"><span data-ic="settings"></span>المزيد<kbd hidden>4</kbd></button>
+    <div class="kbd-hint"><span data-ic="keyboard"></span> اختصارات:<br>1 – 4 التبويبات<br>Ctrl+Z تراجع<br>C الآلة الحاسبة<br>Esc إغلاق</div>
   </nav>
 
   <div class="overlay" id="sheetOverlay">
@@ -76,7 +76,8 @@
   <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
   <input type="file" id="importInput" hidden>
 
-  <script src="data.js?v=8"></script>
-  <script src="app.js?v=8"></script>
+  <script src="icons.js?v=9"></script>
+  <script src="data.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

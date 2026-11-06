@@ -10,7 +10,7 @@ const PCOLORS = ['#e53935', '#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#00acc1
 const LIGHT_GROUPS = ['lightblue', 'yellow'];
 
 const $ = (s, r = document) => r.querySelector(s);
-const DEVICES = { phone: '📱 جوال', tablet: '📲 آيباد', laptop: '💻 لابتوب' };
+const DEVICES = { phone: 'جوال', tablet: 'آيباد', laptop: 'لابتوب' };
 const device = () => document.documentElement.dataset.device;
 function curDeviceSetting() { try { return localStorage.getItem('bankhelper:device') || 'auto'; } catch (e) { return 'auto'; } }
 function setDevice(d) {
@@ -41,7 +41,7 @@ function loadStore() {
 function save() {
   if (G) { G.updated = Date.now(); store.games[G.id] = G; store.currentId = G.id; }
   try { localStorage.setItem(KEY, JSON.stringify(store)); }
-  catch (e) { toast('⚠️ ما قدرت أحفظ — ذاكرة المتصفح ممتلئة'); }
+  catch (e) { toast('ما قدرت أحفظ — ذاكرة المتصفح ممتلئة'); }
 }
 function getUndo() { try { return JSON.parse(localStorage.getItem(UNDO_KEY(G.id))) || []; } catch (e) { return []; } }
 function setUndo(arr) { try { localStorage.setItem(UNDO_KEY(G.id), JSON.stringify(arr.slice(-UNDO_LIMIT))); } catch (e) { } }
@@ -73,7 +73,8 @@ const nameOf = id => id === 'bank' ? 'البنك' : (player(id)?.name || '؟');
 const fmt = n => (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('en') + (G?.currency ? ' ' + G.currency : '');
 const timeStr = t => new Date(t).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
 const dateStr = t => new Date(t).toLocaleString('ar-SA-u-nu-latn', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-const levelText = l => l === 5 ? '🏨 فندق' : l > 0 ? '🏠'.repeat(l) : '';
+const levelText = l => l === 5 ? `<span class="lv hotel">${I('hotel')}فندق</span>` : l > 0 ? `<span class="lv">${I('house').repeat(l)}</span>` : '';
+const levelWords = l => l === 5 ? 'فندق' : l === 1 ? 'بيت' : l === 2 ? 'بيتين' : l + ' بيوت';
 const isLight = g => LIGHT_GROUPS.includes(g);
 
 function toast(msg) {
@@ -94,7 +95,7 @@ function act(text, icon, fn) {
   const u = getUndo(); u.push(snap); setUndo(u);
   save(); render();
   if (pendingMoves.length || pendingHint) showInstruction(pendingMoves, pendingHint);
-  else toast(icon + ' ' + text);
+  else toast(text);
   pendingMoves = []; pendingHint = '';
   return true;
 }
@@ -107,20 +108,20 @@ function showInstruction(moves, hint) {
   };
   const lines = moves.map(m => {
     const money = `<span class="imoney">${fmt(m.amt)}</span>`;
-    if (m.from === 'bank') return `<div class="iline give"><span class="iic">🏦</span><div>أعطِ ${P(m.to)}<br>${money}<small>من البنك</small></div></div>`;
-    if (m.to === 'bank') return `<div class="iline take"><span class="iic">💵</span><div>خذ من ${P(m.from)}<br>${money}<small>وحطها في البنك</small></div></div>`;
-    return `<div class="iline pay"><span class="iic">🔁</span><div>خلّ ${P(m.from)} يعطي ${P(m.to)}<br>${money}</div></div>`;
+    if (m.from === 'bank') return `<div class="iline give"><span class="iic">${I('bank')}</span><div>أعطِ ${P(m.to)}<br>${money}<small>من البنك</small></div></div>`;
+    if (m.to === 'bank') return `<div class="iline take"><span class="iic">${I('cash')}</span><div>خذ من ${P(m.from)}<br>${money}<small>وحطها في البنك</small></div></div>`;
+    return `<div class="iline pay"><span class="iic">${I('swap')}</span><div>خلّ ${P(m.from)} يعطي ${P(m.to)}<br>${money}</div></div>`;
   }).join('');
   // الباقي: لو فيه لاعب يدفع، البنكي يضغط الورق اللي عطاه والموقع يحسب كم يرجع له
   const payer = moves.find(m => m.from !== 'bank');
   const change = payer ? `<div class="change" data-due="${payer.amt}">
-      <div class="ch-h">💵 ${payer.to === 'bank' ? `كم عطاك ${esc(nameOf(payer.from))}؟` : `كم عطى ${esc(nameOf(payer.from))} لـ ${esc(nameOf(payer.to))}؟`} <small>اضغط على الورق</small></div>
+      <div class="ch-h">${I('cash')} ${payer.to === 'bank' ? `كم عطاك ${esc(nameOf(payer.from))}؟` : `كم عطى ${esc(nameOf(payer.from))} لـ ${esc(nameOf(payer.to))}؟`} <small>اضغط على الورق</small></div>
       <input id="chGiven" class="big-amount" type="number" inputmode="numeric" placeholder="اكتب كم عطى" style="margin-bottom:8px">
       <div class="bills">${BILLS.map(v => `<button data-bill="${v}">${v}</button>`).join('')}<button data-bill="0" class="clr">مسح</button></div>
       <div class="ch-res"><span class="ch-given">عطى: <b>0</b></span><span class="ch-out muted">اضغط الورق اللي عطاك</span></div>
     </div>` : '';
   $('#instrBox').innerHTML = `${lines}${hint ? `<div class="ihint">${hint}</div>` : ''}${change}
-    <button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ✅</button>`;
+    <button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ${I('check')}</button>`;
   let given = 0;
   const showChange = () => {
     const due = payer.amt, box = $('#instrBox .ch-res');
@@ -128,9 +129,9 @@ function showInstruction(moves, hint) {
     const out = box.querySelector('.ch-out');
     out.className = 'ch-out';
     if (!given) { out.textContent = 'اضغط الورق اللي عطاك'; out.classList.add('muted'); }
-    else if (given === due) { out.innerHTML = '✅ مضبوط، ما له باقي'; out.classList.add('ok'); }
-    else if (given > due) { out.innerHTML = payer.to === 'bank' ? `↩️ رجّع له <b>${fmt(given - due)}</b>` : `↩️ خلّ ${esc(nameOf(payer.to))} يرجّع له <b>${fmt(given - due)}</b>`; out.classList.add('back'); }
-    else { out.innerHTML = `⚠️ ناقص <b>${fmt(due - given)}</b>`; out.classList.add('short'); }
+    else if (given === due) { out.innerHTML = 'مضبوط، ما له باقي'; out.classList.add('ok'); }
+    else if (given > due) { out.innerHTML = payer.to === 'bank' ? `${I('undo')} رجّع له <b>${fmt(given - due)}</b>` : `${I('undo')} خلّ ${esc(nameOf(payer.to))} يرجّع له <b>${fmt(given - due)}</b>`; out.classList.add('back'); }
+    else { out.innerHTML = `${I('alert')} ناقص <b>${fmt(due - given)}</b>`; out.classList.add('short'); }
   };
   $$('#instrBox [data-bill]').forEach(b => b.onclick = () => {
     const v = num(b.dataset.bill);
@@ -152,7 +153,7 @@ function undo() {
   if (!confirm('تتراجع عن آخر عملية؟\n\n' + (last ? last.text : ''))) return;
   const s = JSON.parse(u.pop()); setUndo(u);
   G.players = s.players; G.props = s.props; G.log = s.log;
-  save(); render(); closeSheet(); toast('↩︎ تم التراجع');
+  save(); render(); closeSheet(); toast('تم التراجع');
 }
 
 function move(from, to, amt) {
@@ -172,7 +173,7 @@ function transfer(from, to, amt, note) {
   amt = num(amt);
   if (amt <= 0) { toast('اكتب مبلغ صحيح'); return false; }
   if (from === to) { toast('نفس الشخص!'); return false; }
-  return act(moneyText(from, to, amt, note), '💸', () => move(from, to, amt));
+  return act(moneyText(from, to, amt, note), 'cash', () => move(from, to, amt));
 }
 
 /* ---------------- الإيجار ---------------- */
@@ -202,7 +203,7 @@ function render() {
     else { G = makeGame(); save(); }
   }
   $('#gameName').textContent = G.name;
-  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${G.players.length} لاعب · 💾 ${timeStr(G.updated)}`;
+  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${G.players.length} لاعب · حُفظ ${timeStr(G.updated)}`;
   $('#undoBtn').disabled = !getUndo().length;
   $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   const v = $('#view');
@@ -235,13 +236,13 @@ function viewPlayers() {
       <div><small>العمليات</small><b>${G.log.length}</b></div></div>`;
   } else {
     const others = Object.values(store.games).filter(g => g.id !== G.id && g.players.length).length;
-    h += `<div class="empty"><div class="big">🎲</div><h2>يلا نبدأ!</h2><p>أضف اللاعبين تحت، وكل واحد يبدأ بـ ${fmt(G.startMoney)}</p>
+    h += `<div class="empty"><div class="big">${I('dice')}</div><h2>يلا نبدأ!</h2><p>أضف اللاعبين تحت، وكل واحد يبدأ بـ ${fmt(G.startMoney)}</p>
       <div class="start-btns">
-        <button class="btn blue" data-act="import">📂 كمّل لعبة محفوظة (من ملف)</button>
-        ${others ? `<button class="btn ghost" data-act="gotoGames">🎲 الألعاب اللي في هذا الجهاز (${others})</button>` : ''}
+        <button class="btn blue" data-act="import">${I('folder')} كمّل لعبة محفوظة (من ملف)</button>
+        ${others ? `<button class="btn ghost" data-act="gotoGames">${I('dice')} الألعاب اللي في هذا الجهاز (${others})</button>` : ''}
       </div></div>`;
   }
-  if (G.players.length) h += `<button class="quick-btn" data-act="quick">⚡ عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
+  if (G.players.length) h += `<button class="quick-btn" data-act="quick">${I('zap')} عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
   for (const p of G.players) {
     const st = playerStats(p.id);
@@ -249,26 +250,26 @@ function viewPlayers() {
       <div class="ptop" data-act="player" data-id="${p.id}">
         <span class="avatar">${esc(p.name.trim()[0] || '?')}</span>
         <div class="nm"><b>${esc(p.name)}</b>
-          <small><span>🃏 ${st.props.length}</span><span>🏠 ${st.houses}</span><span>🏨 ${st.hotels}</span></small></div>
+          <small><span>${I('card')} ${st.props.length}</span><span>${I('house')} ${st.houses}</span><span>${I('hotel')} ${st.hotels}</span></small></div>
         <span class="bal ${p.balance < 0 ? 'neg' : ''}"><span class="num">${p.balance.toLocaleString('en')}</span>${G.currency ? `<small>${esc(G.currency)}</small>` : ''}</span>
       </div>
       ${st.props.length ? `<div class="mini-props">${miniProps(st.props)}</div>` : ''}
       <div class="pbtns">
-        <button class="act go" data-act="go" data-id="${p.id}"><i>🏁</i><b>+${G.goAmount.toLocaleString('en')}</b><small>البداية</small></button>
-        <button class="act in" data-act="money" data-mode="in" data-id="${p.id}"><i>＋</i><b>إضافة</b><small>من البنك</small></button>
-        <button class="act out" data-act="money" data-mode="out" data-id="${p.id}"><i>−</i><b>دفع</b><small>للبنك</small></button>
-        <button class="act pay" data-act="money" data-mode="pay" data-id="${p.id}"><i>⇄</i><b>تحويل</b><small>للاعب</small></button>
+        <button class="act go" data-act="go" data-id="${p.id}"><i>${I('flag')}</i><b>+${G.goAmount.toLocaleString('en')}</b><small>البداية</small></button>
+        <button class="act in" data-act="money" data-mode="in" data-id="${p.id}"><i>${I('plus')}</i><b>إضافة</b><small>من البنك</small></button>
+        <button class="act out" data-act="money" data-mode="out" data-id="${p.id}"><i>${I('minus')}</i><b>دفع</b><small>للبنك</small></button>
+        <button class="act pay" data-act="money" data-mode="pay" data-id="${p.id}"><i>${I('swap')}</i><b>تحويل</b><small>للاعب</small></button>
       </div>
     </div>`;
   }
-  h += `</div><div class="card add-player"><h3>➕ إضافة لاعب</h3>
+  h += `</div><div class="card add-player"><h3>${I('plus')} إضافة لاعب</h3>
     <div class="row"><input id="newPlayer" placeholder="اسم اللاعب" enterkeyhint="done" autocomplete="off">
     <button class="btn" data-act="addPlayer" style="flex:none;min-width:96px">إضافة</button></div></div>`;
   return h;
 }
 
 function viewProps() {
-  let h = `<button class="btn ghost wide" data-act="newProp" style="margin-bottom:14px">➕ بطاقة جديدة</button><div class="groups">`;
+  let h = `<button class="btn ghost wide" data-act="newProp" style="margin-bottom:14px">${I('plus')} بطاقة جديدة</button><div class="groups">`;
   const used = new Set();
   const fams = FAMILIES.map(f => f.groups ? f : { ...groupOf(f.id), groups: [f.id] });
   // أي مجموعة جديدة مو في القائمة تطلع لحالها
@@ -286,74 +287,74 @@ function viewProps() {
 }
 function propCard(p) {
   const g = groupOf(p.group), o = p.owner && player(p.owner);
-  const icon = g.type === 'station' ? '🚂' : g.type === 'utility' ? (p.en && /water/i.test(p.en) ? '🚰' : '💡') : '';
+  const icon = g.type === 'station' ? 'train' : g.type === 'utility' ? (p.en && /water/i.test(p.en) ? 'drop' : 'bulb') : '';
   return `<button class="prop ${p.mortgaged ? 'mort' : ''} ${o ? 'owned' : ''}" style="--c:${g.color};${o ? `--oc:${o.color}` : ''}" data-act="prop" data-id="${p.id}">
-    <span class="deed-h ${isLight(p.group) ? 'light' : ''}">${icon ? `<i>${icon}</i>` : ''}<span>${esc(p.name)}</span></span>
+    <span class="deed-h ${isLight(p.group) ? 'light' : ''}">${icon ? I(icon, 'deed-ic') : ''}<span>${esc(p.name)}</span></span>
     <span class="body">
       <span class="pr">${fmt(p.price)}</span>
       <span class="houses">${levelText(p.level)}</span>
-      ${o ? `<span class="owner-chip"><span class="od"></span>${esc(o.name)}</span>` : `<span class="owner-chip bank">🏦 البنك</span>`}
+      ${o ? `<span class="owner-chip"><span class="od"></span>${esc(o.name)}</span>` : `<span class="owner-chip bank">${I('bank')} البنك</span>`}
       ${p.mortgaged ? '<span class="stamp">مرهونة</span>' : ''}
     </span></button>`;
 }
 
 function viewLog() {
-  if (!G.log.length) return `<div class="empty"><div class="big">📜</div><p>ما فيه عمليات للحين</p></div>`;
+  if (!G.log.length) return `<div class="empty"><div class="big">${I('list')}</div><p>ما فيه عمليات للحين</p></div>`;
   return `<div class="card">
     <div class="row" style="margin-bottom:6px"><h3 style="margin:0">كل العمليات (${G.log.length})</h3>
-    <button class="btn ghost sm" style="flex:none" data-act="undo">↩︎ تراجع عن آخر وحدة</button></div>
-    ${G.log.map(l => `<div class="log-item"><span class="ic">${l.icon || '•'}</span>
+    <button class="btn ghost sm" style="flex:none" data-act="undo">${I('undo')} تراجع عن آخر وحدة</button></div>
+    ${G.log.map(l => `<div class="log-item"><span class="ic">${logIcon(l.icon)}</span>
       <span class="tx">${esc(l.text)}</span><time>${timeStr(l.t)}</time></div>`).join('')}</div>`;
 }
 
 function viewMore() {
   const games = Object.values(store.games).sort((a, b) => b.updated - a.updated);
   return `<div class="more-grid">
-  <div class="card"><h3>📸 صور الطاولة</h3>
+  <div class="card"><h3>${I('camera')} صور الطاولة</h3>
     <p class="muted small">صوّر اللوحة قبل لا توقفون عشان تعرفون كل واحد وين كان، والصورة تنحفظ مع اللعبة.</p>
-    <button class="btn gold" data-act="photo" style="width:100%">📷 صوّر الطاولة الحين</button>
+    <button class="btn gold" data-act="photo" style="width:100%">${I('camera')} صوّر الطاولة الحين</button>
     <div class="photos" id="photos" style="margin-top:10px">${G.photos.map(ph => `
       <button class="photo" data-act="viewPhoto" data-id="${ph.id}"><img data-photo="${ph.id}" alt=""><span>${dateStr(ph.t)}</span></button>`).join('')}
     </div></div>
 
-  <div class="card"><h3>🎲 الألعاب المحفوظة</h3>
+  <div class="card"><h3>${I('dice')} الألعاب المحفوظة</h3>
     ${games.map(g => `<div class="game-item ${g.id === G.id ? 'cur' : ''}">
       <div class="info"><b>${esc(g.name)}</b><div class="muted small">${g.players.length} لاعب · ${dateStr(g.updated)}</div></div>
       ${g.id === G.id ? '' : `<button class="btn sm" data-act="openGame" data-id="${g.id}">فتح</button>`}
-      <button class="btn ghost sm" data-act="delGame" data-id="${g.id}">🗑️</button></div>`).join('')}
-    <button class="btn" data-act="newGame" style="width:100%;margin-top:10px">➕ لعبة جديدة</button>
+      <button class="btn ghost sm" data-act="delGame" data-id="${g.id}">${I('trash')}</button></div>`).join('')}
+    <button class="btn" data-act="newGame" style="width:100%;margin-top:10px">${I('plus')} لعبة جديدة</button>
     <p class="muted small">اللعبة الجديدة تاخذ نفس البطاقات والأسعار اللي عدلتها هنا، بس تبدأ من الصفر.</p></div>
 
-  <div class="card"><h3>🖥️ الجهاز</h3>
+  <div class="card"><h3>${I('monitor')} الجهاز</h3>
     <p class="muted small" style="margin-top:0">الموقع عرف إنك فاتح من: <b>${DEVICES[window.AUTO_DEVICE]}</b>. إذا غلط، اختر جهازك:</p>
-    <div class="chips">${[['auto', '✨ تلقائي'], ...Object.entries(DEVICES)].map(([k, v]) => `<button class="chip ${curDeviceSetting() === k ? 'on' : ''}" data-act="device" data-v="${k}">${v}</button>`).join('')}</div>
+    <div class="chips">${[['auto', 'تلقائي'], ...Object.entries(DEVICES)].map(([k, v]) => `<button class="chip ${curDeviceSetting() === k ? 'on' : ''}" data-act="device" data-v="${k}">${I(k === 'auto' ? 'sparkle' : k)}${v}</button>`).join('')}</div>
   </div>
 
-  <div class="card"><h3>⚙️ الإعدادات</h3>
+  <div class="card"><h3>${I('settings')} الإعدادات</h3>
     <label class="f">اسم اللعبة</label><input id="setName" value="${esc(G.name)}">
     <div class="row">
       <div><label class="f">فلوس البداية</label><input id="setStart" type="number" inputmode="numeric" value="${G.startMoney}"></div>
       <div><label class="f">مبلغ خط البداية</label><input id="setGo" type="number" inputmode="numeric" value="${G.goAmount}"></div>
     </div>
     <label class="f">العملة (اختياري، مثل: ج أو $)</label><input id="setCur" value="${esc(G.currency)}" maxlength="6">
-    <button class="btn" data-act="saveSettings" style="width:100%;margin-top:12px">💾 حفظ الإعدادات</button></div>
+    <button class="btn" data-act="saveSettings" style="width:100%;margin-top:12px">${I('save')} حفظ الإعدادات</button></div>
 
-  <div class="card backup"><h3>💾 النسخة الاحتياطية</h3>
+  <div class="card backup"><h3>${I('save')} النسخة الاحتياطية</h3>
     <p class="muted small" style="margin-top:0">كل شي ينحفظ في هذا الجهاز لحاله. بس لو تبي تنقل اللعبة لجهاز ثاني، أو تحتفظ فيها بأمان، احفظ نسخة في ملف.</p>
-    <button class="btn" data-act="export" style="width:100%">⬇️ احفظ نسخة في ملف</button>
-    <button class="btn blue" data-act="import" style="width:100%;margin-top:8px">📂 افتح نسخة محفوظة</button>
+    <button class="btn" data-act="export" style="width:100%">${I('download')} احفظ نسخة في ملف</button>
+    <button class="btn blue" data-act="import" style="width:100%;margin-top:8px">${I('folder')} افتح نسخة محفوظة</button>
     <p class="muted small">لما تفتح النسخة، يرجع كل شي مثل ما كان: اللاعبين والفلوس والبطاقات وصور الطاولة.</p></div>
 
-  <div class="card"><h3>🧹 أخرى</h3>
+  <div class="card"><h3>${I('sparkle')} أخرى</h3>
     <div class="row wrap">
-      <button class="btn ghost" data-act="resetGame">🔄 إعادة اللعبة من الصفر</button>
-      <button class="btn ghost" data-act="resetProps">🃏 رجّع البطاقات الأصلية</button>
+      <button class="btn ghost" data-act="resetGame">${I('refresh')} إعادة اللعبة من الصفر</button>
+      <button class="btn ghost" data-act="resetProps">${I('card')} رجّع البطاقات الأصلية</button>
     </div></div></div>`;
 }
 
 /* ---------------- النوافذ (Sheet) ---------------- */
 function openSheet(title, body) {
-  $('#sheet').innerHTML = `<div class="sheet-h"><h2>${title}</h2><button class="x" data-act="close">✕</button></div>${body}`;
+  $('#sheet').innerHTML = `<div class="sheet-h"><h2>${title}</h2><button class="x" data-act="close">${I('x')}</button></div>${body}`;
   $('#sheetOverlay').classList.add('show');
   $('#sheet').scrollTop = 0;
 }
@@ -366,7 +367,7 @@ function amountField(id, val = '') {
 }
 function playerSelect(id, exclude, withBank, selected) {
   const opts = G.players.filter(p => p.id !== exclude).map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)} (${fmt(p.balance)})</option>`);
-  if (withBank) opts.unshift(`<option value="bank">🏦 البنك</option>`);
+  if (withBank) opts.unshift(`<option value="bank">${I('bank')} البنك</option>`);
   return `<select id="${id}">${opts.join('')}</select>`;
 }
 
@@ -375,7 +376,7 @@ function sheetMoney(mode, pid) {
   const notes = mode === 'in'
     ? ['بطاقة حظ', 'صندوق الجماعة', 'رهن', 'بيع']
     : mode === 'out' ? ['بطاقة حظ', 'صندوق الجماعة', 'شراء', 'السجن'] : ['إيجار', 'شراء', 'بطاقة حظ', 'دين'];
-  const title = mode === 'in' ? `➕ البنك يعطي ${esc(p.name)}` : mode === 'out' ? `➖ ${esc(p.name)} يدفع للبنك` : `🔁 ${esc(p.name)} يحوّل`;
+  const title = mode === 'in' ? `${I('plus')} البنك يعطي ${esc(p.name)}` : mode === 'out' ? `${I('minus')} ${esc(p.name)} يدفع للبنك` : `${I('swap')} ${esc(p.name)} يحوّل`;
   if (mode === 'pay' && G.players.length < 2) return toast('لازم يكون فيه لاعب ثاني');
   openSheet(title, `
     <div class="card">
@@ -386,7 +387,7 @@ function sheetMoney(mode, pid) {
       <div class="chips">${notes.map(n => `<button class="chip" data-act="note" data-v="${n}">${n}</button>`).join('')}</div>
       ${mode === 'out' ? `<div class="chips">${TAXES.map(t => `<button class="chip on" data-act="tax" data-v="${t.amount}" data-n="${t.name}">${t.name} ${fmt(t.amount)}</button>`).join('')}</div>` : ''}
     </div>
-    <button class="btn ${mode === 'out' ? 'danger' : mode === 'pay' ? 'blue' : ''}" style="width:100%" data-act="doMoney" data-mode="${mode}" data-id="${pid}">✅ تأكيد</button>`);
+    <button class="btn ${mode === 'out' ? 'danger' : mode === 'pay' ? 'blue' : ''}" style="width:100%" data-act="doMoney" data-mode="${mode}" data-id="${pid}">${I('check')} تأكيد</button>`);
   setTimeout(() => $('#mAmt')?.focus(), 50);
 }
 
@@ -398,18 +399,18 @@ function sheetPlayer(pid) {
     <div class="card">
       <div class="row"><div><div class="muted small">الرصيد</div><div class="bal ${p.balance < 0 ? 'neg' : ''}">${fmt(p.balance)}</div></div>
       <div><div class="muted small">قيمة كل ممتلكاته تقريبا</div><div class="bal" style="font-size:18px">${fmt(worth)}</div></div></div>
-      <div class="muted small" style="margin-top:8px">🃏 ${st.props.length} بطاقة · 🏠 ${st.houses} بيت · 🏨 ${st.hotels} فندق</div>
+      <div class="muted small" style="margin-top:8px">${I('card')} ${st.props.length} بطاقة · ${I('house')} ${st.houses} بيت · ${I('hotel')} ${st.hotels} فندق</div>
     </div>
     <div class="card"><h3>البطاقات</h3>${list || '<p class="muted">ما عنده بطاقات</p>'}</div>
-    <button class="quick-btn" data-act="quick" data-from="${pid}">⚡ عملية لـ ${esc(p.name)}</button>
+    <button class="quick-btn" data-act="quick" data-from="${pid}">${I('zap')} عملية لـ ${esc(p.name)}</button>
     <div class="card"><h3>تعديل</h3>
       <label class="f">الاسم</label><input id="pName" value="${esc(p.name)}">
       <label class="f">اللون</label>
       <div class="chips">${PCOLORS.map(c => `<button class="chip ${c === p.color ? 'on' : ''}" data-act="pColor" data-v="${c}" style="background:${c};border-color:${c};width:34px;height:34px"></button>`).join('')}</div>
       <label class="f">تعديل الرصيد مباشرة (لو صار غلط)</label>
       <input id="pBal" type="number" inputmode="numeric" value="${p.balance}" data-amount>
-      <button class="btn" style="width:100%;margin-top:10px" data-act="savePlayer" data-id="${pid}">💾 حفظ</button>
-      <button class="btn danger" style="width:100%;margin-top:8px" data-act="delPlayer" data-id="${pid}">🗑️ حذف اللاعب</button>
+      <button class="btn" style="width:100%;margin-top:10px" data-act="savePlayer" data-id="${pid}">${I('save')} حفظ</button>
+      <button class="btn danger" style="width:100%;margin-top:8px" data-act="delPlayer" data-id="${pid}">${I('trash')} حذف اللاعب</button>
     </div>`);
 }
 
@@ -440,47 +441,47 @@ function sheetProp(id) {
   const p = prop(id), g = groupOf(p.group), type = g.type, o = p.owner && player(p.owner);
   let body = deedTable(p);
   if (!o) {
-    body += `<div class="card"><h3>🏦 البطاقة عند البنك</h3>
+    body += `<div class="card"><h3>${I('bank')} البطاقة عند البنك</h3>
       ${G.players.length ? `
       <label class="f">مين اشتراها؟</label>${playerSelect('bBuyer')}
       <label class="f">المبلغ (لو مزاد غيّره)</label>${amountField('bPrice', p.price)}
-      <button class="btn" style="width:100%;margin-top:12px" data-act="buy" data-id="${id}">✅ تم البيع</button>
-      <button class="btn ghost" style="width:100%;margin-top:8px" data-act="give" data-id="${id}">🎁 تسليمها بدون فلوس</button>`
+      <button class="btn" style="width:100%;margin-top:12px" data-act="buy" data-id="${id}">${I('check')} تم البيع</button>
+      <button class="btn ghost" style="width:100%;margin-top:8px" data-act="give" data-id="${id}">${I('gift')} تسليمها بدون فلوس</button>`
       : '<p class="muted">أضف لاعبين أول</p>'}</div>`;
   } else {
     const r = rentOf(p);
-    body += `<div class="card"><h3>👤 المالك: <span style="color:${o.color}">${esc(o.name)}</span></h3>
+    body += `<div class="card"><h3>${I('user')} المالك: <span style="color:${o.color}">${esc(o.name)}</span></h3>
       ${p.mortgaged ? '<p class="badge" style="font-size:14px">البطاقة مرهونة — ما فيها إيجار</p>' : ''}
       ${!p.mortgaged && G.players.length > 1 ? `
       <div class="section" style="border:0;margin:0;padding:0">
-        <label class="f">💰 دفع الإيجار — مين وقف عليها؟</label>${playerSelect('rPayer', p.owner)}
+        <label class="f">${I('coins')} دفع الإيجار — مين وقف عليها؟</label>${playerSelect('rPayer', p.owner)}
         ${type === 'utility' ? `<label class="f">كم مجموع النرد؟</label><input id="rDice" type="number" inputmode="numeric" placeholder="مثلا 7">` : ''}
         <button class="btn gold" style="width:100%;margin-top:10px" data-act="rent" data-id="${id}">
-          💰 دفع الإيجار ${r !== null ? '(' + fmt(r) + ')' : ''}</button>
+          ${I('coins')} دفع الإيجار ${r !== null ? '(' + fmt(r) + ')' : ''}</button>
       </div>` : ''}
 
-      ${type === 'street' ? `<div class="section"><h3>🏠 البيوت والفنادق</h3>
+      ${type === 'street' ? `<div class="section"><h3>${I('house')} البيوت والفنادق</h3>
         <div class="lvl"><button class="btn danger" data-act="lvl" data-d="-1" data-id="${id}" ${p.level <= 0 ? 'disabled' : ''}>−</button>
         <span class="show">${levelText(p.level) || 'ولا بيت'}</span>
         <button class="btn" data-act="lvl" data-d="1" data-id="${id}" ${p.level >= 5 ? 'disabled' : ''}>+</button></div>
         <label class="row small muted" style="justify-content:center;gap:6px"><input type="checkbox" id="lvlPay" checked style="flex:none;width:20px;height:20px"> خصم/إرجاع الفلوس تلقائيا (البيت ${fmt(p.house)}، البيع بالنص)</label>
       </div>` : ''}
 
-      <div class="section"><h3>🏷️ الرهن</h3>
+      <div class="section"><h3>${I('tag')} الرهن</h3>
         ${p.mortgaged
           ? `<button class="btn" style="width:100%" data-act="unmort" data-id="${id}">فك الرهن (يدفع ${fmt(Math.round(p.mortgage * 1.1))})</button>`
           : `<button class="btn ghost" style="width:100%" data-act="mort" data-id="${id}" ${p.level ? 'disabled' : ''}>رهن البطاقة (ياخذ ${fmt(p.mortgage)})</button>
              ${p.level ? '<p class="muted small">لازم يبيع البيوت أول</p>' : ''}`}
       </div>
 
-      <div class="section"><h3>🔁 نقلها للاعب ثاني</h3>
+      <div class="section"><h3>${I('swap')} نقلها للاعب ثاني</h3>
         ${G.players.length > 1 ? `${playerSelect('tTo', p.owner)}
         <label class="f">بكم؟ (0 لو تبادل بدون فلوس)</label>${amountField('tPrice', 0)}
-        <button class="btn blue" style="width:100%;margin-top:10px" data-act="trade" data-id="${id}">✅ تم النقل</button>` : '<p class="muted small">ما فيه لاعب ثاني</p>'}
-        <button class="btn ghost" style="width:100%;margin-top:8px" data-act="toBank" data-id="${id}">🏦 رجّعها للبنك</button>
+        <button class="btn blue" style="width:100%;margin-top:10px" data-act="trade" data-id="${id}">${I('check')} تم النقل</button>` : '<p class="muted small">ما فيه لاعب ثاني</p>'}
+        <button class="btn ghost" style="width:100%;margin-top:8px" data-act="toBank" data-id="${id}">${I('bank')} رجّعها للبنك</button>
       </div></div>`;
   }
-  body += `<button class="btn ghost" style="width:100%" data-act="editProp" data-id="${id}">✏️ تعديل بيانات البطاقة</button>`;
+  body += `<button class="btn ghost" style="width:100%" data-act="editProp" data-id="${id}">${I('pencil')} تعديل بيانات البطاقة</button>`;
   openSheet(`${g.name}`, body);
 }
 
@@ -490,7 +491,7 @@ function sheetEditProp(id) {
   const type = groupOf(p.group).type;
   const labels = type === 'street' ? ['أرض فاضية', 'بيت', 'بيتين', '3 بيوت', '4 بيوت', 'فندق']
     : type === 'station' ? ['محطة وحدة', 'محطتين', '3 محطات', '4 محطات'] : ['مضاعف النرد (شركة وحدة)', 'مضاعف النرد (الشركتين)'];
-  openSheet(isNew ? '➕ بطاقة جديدة' : '✏️ تعديل البطاقة', `<div class="card">
+  openSheet(isNew ? 'بطاقة جديدة' : 'تعديل البطاقة', `<div class="card">
     <label class="f">الاسم</label><input id="eName" value="${esc(p.name)}">
     <label class="f">الاسم بالإنجليزي (اختياري)</label><input id="eEn" value="${esc(p.en)}" dir="ltr">
     <label class="f">اللون / النوع</label>
@@ -503,8 +504,8 @@ function sheetEditProp(id) {
       <input class="eRent" type="number" inputmode="numeric" value="${p.rent[i] ?? 0}"></div>`).join('')}</div>
     <p class="muted small">لو غيّرت النوع (مثلا من شارع لمحطة) احفظ وافتح التعديل مرة ثانية عشان تتغير خانات الإيجار.</p>
   </div>
-  <button class="btn" style="width:100%" data-act="saveProp" data-id="${id || ''}">💾 حفظ</button>
-  ${isNew ? '' : `<button class="btn danger" style="width:100%;margin-top:8px" data-act="delProp" data-id="${id}">🗑️ حذف البطاقة</button>`}`);
+  <button class="btn" style="width:100%" data-act="saveProp" data-id="${id || ''}">${I('save')} حفظ</button>
+  ${isNew ? '' : `<button class="btn danger" style="width:100%;margin-top:8px" data-act="delProp" data-id="${id}">${I('trash')} حذف البطاقة</button>`}`);
 }
 
 /* ---------------- الصور (IndexedDB) ---------------- */
@@ -562,14 +563,14 @@ async function addPhoto(file) {
     const id = uid();
     await idb.put(id, blob);
     G.photos.unshift({ id, t: Date.now() });
-    G.log.unshift({ id: uid(), t: Date.now(), text: 'تم حفظ صورة للطاولة', icon: '📸' });
-    save(); render(); toast('📸 انحفظت الصورة');
+    G.log.unshift({ id: uid(), t: Date.now(), text: 'تم حفظ صورة للطاولة', icon: 'camera' });
+    save(); render(); toast('انحفظت الصورة');
   } catch (e) { toast('ما قدرت أحفظ الصورة'); }
 }
 async function viewPhoto(id) {
   const ph = G.photos.find(p => p.id === id);
-  openSheet('📸 ' + dateStr(ph.t), `<img class="full-photo" src="${await photoURL(id)}" alt="">
-    <button class="btn danger" style="width:100%;margin-top:10px" data-act="delPhoto" data-id="${id}">🗑️ حذف الصورة</button>`);
+  openSheet('' + dateStr(ph.t), `<img class="full-photo" src="${await photoURL(id)}" alt="">
+    <button class="btn danger" style="width:100%;margin-top:10px" data-act="delPhoto" data-id="${id}">${I('trash')} حذف الصورة</button>`);
 }
 
 /* ---------------- النسخ الاحتياطي ---------------- */
@@ -588,14 +589,14 @@ async function exportAll() {
     const file = new File([blob], name, { type: 'application/json' });
     if (device() !== 'laptop' && navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title: 'نسخة ' + G.name });
-      return toast('⬇️ انحفظت النسخة');
+      return toast('انحفظت النسخة');
     }
   } catch (e) { if (e && e.name === 'AbortError') return; }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
-  toast('⬇️ انحفظت النسخة في التنزيلات');
+  toast('انحفظت النسخة في التنزيلات');
 }
 async function importAll(file) {
   try {
@@ -609,24 +610,24 @@ async function importAll(file) {
     G = store.games[cur]; store.currentId = cur; tab = 'players';
     save(); render(); window.scrollTo(0, 0);
     showRestored(d, Object.keys(d.store.games).length);
-  } catch (e) { toast('⚠️ هذا الملف مو نسخة من الموقع'); }
+  } catch (e) { toast('هذا الملف مو نسخة من الموقع'); }
 }
 async function showRestored(d, count) {
   const ph = G.photos[0];
   const rows = G.players.slice().sort((x, y) => y.balance - x.balance).map(p => {
     const st = playerStats(p.id);
     return `<div class="rs-row" style="--c:${p.color}"><span class="avatar" style="width:36px;height:36px;font-size:17px;border-radius:12px">${esc(p.name.trim()[0] || '?')}</span>
-      <b>${esc(p.name)}</b><span class="muted small">🃏 ${st.props.length} · 🏠 ${st.houses} · 🏨 ${st.hotels}</span><span class="bal" style="font-size:19px;margin-inline-start:auto">${fmt(p.balance)}</span></div>`;
+      <b>${esc(p.name)}</b><span class="muted small">${I('card')} ${st.props.length} · ${I('house')} ${st.houses} · ${I('hotel')} ${st.hotels}</span><span class="bal" style="font-size:19px;margin-inline-start:auto">${fmt(p.balance)}</span></div>`;
   }).join('');
-  const last = G.log.find(l => l.icon !== '📸');
-  openSheet('📂 رجعت اللعبة!', `
+  const last = G.log.find(l => l.icon !== 'camera');
+  openSheet('رجعت اللعبة!', `
     <div class="card"><h3 style="margin-bottom:4px">${esc(G.name)}</h3>
       <p class="muted small" style="margin:0 0 10px">آخر مرة لعبتوا: ${dateStr(G.updated)}${count > 1 ? ` · وفي الملف ${count} ألعاب (تلقاها في المزيد)` : ''}</p>
       ${rows || '<p class="muted">ما فيها لاعبين</p>'}
-      ${last ? `<p class="small" style="margin:12px 0 0">📜 آخر عملية: <b>${esc(last.text)}</b></p>` : ''}</div>
-    ${ph ? `<div class="card"><h3>📸 هذي آخر صورة للطاولة</h3><p class="muted small" style="margin-top:0">رجّعوا القطع مكانها مثل الصورة</p>
+      ${last ? `<p class="small" style="margin:12px 0 0">${I('list')} آخر عملية: <b>${esc(last.text)}</b></p>` : ''}</div>
+    ${ph ? `<div class="card"><h3>${I('camera')} هذي آخر صورة للطاولة</h3><p class="muted small" style="margin-top:0">رجّعوا القطع مكانها مثل الصورة</p>
       <img class="full-photo" src="${await photoURL(ph.id)}" alt=""></div>` : `<p class="muted small">ما فيه صورة للطاولة في هذي النسخة. المرة الجاية صوّروا الطاولة من المزيد قبل لا توقفون.</p>`}
-    <button class="btn" data-act="close" style="width:100%;font-size:18px">يلا نكمّل 🎲</button>`);
+    <button class="btn" data-act="close" style="width:100%;font-size:18px">يلا نكمّل ${I('dice')}</button>`);
 }
 
 /* ---------------- الآلة الحاسبة ---------------- */
@@ -674,12 +675,12 @@ function calcInit() {
 
 /* ---------------- ⚡ عملية جديدة (من ← إلى + السبب + البطاقة) ---------------- */
 const REASONS = [
-  { id: 'rent', icon: '💰', name: 'إيجار' },
-  { id: 'mort', icon: '🏷️', name: 'رهن' },
-  { id: 'unmort', icon: '🔓', name: 'فك رهن' },
-  { id: 'buy', icon: '🃏', name: 'شراء' },
-  { id: 'go', icon: '🏁', name: 'البداية' },
-  { id: 'custom', icon: '✏️', name: 'مبلغ' },
+  { id: 'rent', icon: 'coins', name: 'إيجار' },
+  { id: 'mort', icon: 'tag', name: 'رهن' },
+  { id: 'unmort', icon: 'unlock', name: 'فك رهن' },
+  { id: 'buy', icon: 'cart', name: 'شراء' },
+  { id: 'go', icon: 'flag', name: 'البداية' },
+  { id: 'custom', icon: 'pencil', name: 'مبلغ' },
 ];
 let Q = null;
 
@@ -758,7 +759,7 @@ function renderQuick() {
     const ok = list.includes(id) && id !== other;
     const p = id === 'bank' ? { name: 'البنك', color: '#0e4d2f' } : player(id);
     return `<button class="${sel === id ? 'on' : ''}" style="--c:${p.color}" data-act="qPick" data-side="${side}" data-v="${id}" ${ok ? '' : 'disabled'}>
-      <span class="av" style="background:${p.color}">${id === 'bank' ? '🏦' : esc(p.name.trim()[0] || '?')}</span>${esc(p.name)}</button>`;
+      <span class="av" style="background:${p.color}">${id === 'bank' ? I('bank') : esc(p.name.trim()[0] || '?')}</span>${esc(p.name)}</button>`;
   }).join('')}</div>`;
 
   const cards = qCards();
@@ -789,7 +790,7 @@ function renderQuick() {
   const card = Q.card && prop(Q.card);
   const needDice = Q.reason === 'rent' && card && groupOf(card.group).type === 'utility';
   const extra = needDice
-    ? `<label class="f">🎲 كم مجموع النرد؟</label><input id="qDice" type="number" inputmode="numeric" placeholder="مثلا 7" value="${esc(Q.dice)}">`
+    ? `<label class="f">${I('dice')} كم مجموع النرد؟</label><input id="qDice" type="number" inputmode="numeric" placeholder="مثلا 7" value="${esc(Q.dice)}">`
     : (Q.reason === 'custom' || Q.reason === 'buy')
       ? `<label class="f">${Q.reason === 'buy' ? 'السعر (غيّره لو مزاد)' : 'المبلغ'}</label>
          <input id="qAmt" class="big-amount" type="number" inputmode="numeric" placeholder="${Q.reason === 'buy' && card ? card.price : '0'}" value="${esc(Q.amount)}" data-amount>
@@ -801,7 +802,7 @@ function renderQuick() {
   const amt = qAmount();
   const ready = Q.from && Q.to && Q.from !== Q.to && (!R.needCard || Q.card) && amt !== null && (amt > 0 || Q.reason === 'buy');
   const note = {
-    rent: card ? `إيجار ${card.name}${card.level ? ' مع ' + levelText(card.level) : ''}${!card.level && groupOf(card.group).type === 'street' && ownsFullSet(card) ? ' (ضعف — اللون كامل)' : ''}` : '',
+    rent: card ? `إيجار ${card.name}${card.level ? ' مع ' + levelWords(card.level) : ''}${!card.level && groupOf(card.group).type === 'street' && ownsFullSet(card) ? ' (ضعف — اللون كامل)' : ''}` : '',
     mort: card ? `${card.name} بتصير مرهونة` : '',
     unmort: card ? `فك رهن ${card.name} (القيمة + 10%)` : '',
     buy: card ? `${card.name} بتصير لـ ${nameOf(Q.from)}` : '',
@@ -809,23 +810,23 @@ function renderQuick() {
     custom: Q.note,
   }[Q.reason];
   const result = `<div class="qresult ${ready ? 'ready' : ''}">
-    <div class="flow"><span>${Q.from ? esc(nameOf(Q.from)) : '؟'}</span><span>⬅</span><span>${Q.to ? esc(nameOf(Q.to)) : '؟'}</span></div>
+    <div class="flow"><span>${Q.from ? esc(nameOf(Q.from)) : '؟'}</span><span>${I('arrow')}</span><span>${Q.to ? esc(nameOf(Q.to)) : '؟'}</span></div>
     <div class="amt">${amt === null ? '—' : fmt(amt)}</div>
     <small>${ready ? esc(note || '') + (Q.reason !== 'custom' && Q.reason !== 'buy' ? ' — الموقع حسبها لحاله' : '') : needDice && !num(Q.dice) ? 'اكتب مجموع النرد' : 'كمّل الاختيارات فوق'}</small></div>`;
 
   const scroll = $('#sheetOverlay').classList.contains('show') ? $('#sheet').scrollTop : 0;
-  openSheet('⚡ عملية جديدة', `
+  openSheet('عملية جديدة', `
     <div class="step"><span class="n">1</span>وش السبب؟</div>
-    <div class="reasons">${REASONS.map(r => `<button class="${Q.reason === r.id ? 'on' : ''}" data-act="qReason" data-v="${r.id}"><i>${r.icon}</i>${r.name}</button>`).join('')}</div>
+    <div class="reasons">${REASONS.map(r => `<button class="${Q.reason === r.id ? 'on' : ''}" data-act="qReason" data-v="${r.id}">${I(r.icon)}<span>${r.name}</span></button>`).join('')}</div>
     <div class="step"><span class="n">2</span>من؟ <small>(اللي يدفع)</small></div>
     ${who('from', R.from, Q.from, Q.to)}
-    <div class="arrow">⬇</div>
+    <div class="arrow">${I('arrowDown')}</div>
     <div class="step"><span class="n">3</span>إلى؟ <small>(اللي ياخذ)</small></div>
     ${who('to', R.to, Q.to, Q.from)}
     ${cardStep}
     ${extra}
     ${result}
-    <button class="btn" style="width:100%;margin-top:12px;font-size:18px" data-act="qDo" ${ready ? '' : 'disabled'}>✅ تأكيد</button>`);
+    <button class="btn" style="width:100%;margin-top:12px;font-size:18px" data-act="qDo" ${ready ? '' : 'disabled'}>${I('check')} تأكيد</button>`);
   $('#sheet').scrollTop = scroll;
 }
 function qDo() {
@@ -835,9 +836,9 @@ function qDo() {
     case 'rent': ok = transfer(f, t, amt, 'إيجار ' + p.name); break;
     case 'go': ok = transfer('bank', t, amt, 'خط البداية'); break;
     case 'custom': ok = transfer(f, t, amt, Q.note.trim()); break;
-    case 'mort': ok = act(`${nameOf(t)} رهن ${p.name} وأخذ ${fmt(amt)}`, '🏷️', () => { move('bank', t, amt); p.mortgaged = true; hint(`🏷️ اقلب بطاقة <b>${esc(p.name)}</b> على وجه «مرهونة»`); }); break;
-    case 'unmort': ok = act(`${nameOf(f)} فك رهن ${p.name} ودفع ${fmt(amt)}`, '🔓', () => { move(f, 'bank', amt); p.mortgaged = false; hint(`🔓 اقلب بطاقة <b>${esc(p.name)}</b> على الوجه العادي`); }); break;
-    case 'buy': ok = act(`${nameOf(f)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(f, 'bank', amt); p.owner = f; hint(`🃏 وأعطه بطاقة <b>${esc(p.name)}</b>`); }); break;
+    case 'mort': ok = act(`${nameOf(t)} رهن ${p.name} وأخذ ${fmt(amt)}`, 'tag', () => { move('bank', t, amt); p.mortgaged = true; hint(`${I('tag')} اقلب بطاقة <b>${esc(p.name)}</b> على وجه «مرهونة»`); }); break;
+    case 'unmort': ok = act(`${nameOf(f)} فك رهن ${p.name} ودفع ${fmt(amt)}`, 'unlock', () => { move(f, 'bank', amt); p.mortgaged = false; hint(`${I('unlock')} اقلب بطاقة <b>${esc(p.name)}</b> على الوجه العادي`); }); break;
+    case 'buy': ok = act(`${nameOf(f)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, 'card', () => { move(f, 'bank', amt); p.owner = f; hint(`${I('card')} وأعطه بطاقة <b>${esc(p.name)}</b>`); }); break;
   }
   if (ok) closeSheet();
 }
@@ -884,7 +885,7 @@ const actions = {
     const name = val('newPlayer').trim();
     if (!name) return toast('اكتب اسم اللاعب');
     const color = PCOLORS.find(c => !G.players.some(p => p.color === c)) || PCOLORS[G.players.length % PCOLORS.length];
-    act(`انضم ${name} برصيد ${fmt(G.startMoney)}`, '👤', () => { G.players.push({ id: uid(), name, color, balance: G.startMoney }); });
+    act(`انضم ${name} برصيد ${fmt(G.startMoney)}`, 'user', () => { G.players.push({ id: uid(), name, color, balance: G.startMoney }); });
     setTimeout(() => $('#newPlayer')?.focus(), 30);
   },
   player: d => sheetPlayer(d.id),
@@ -908,13 +909,13 @@ const actions = {
     const parts = [];
     if (name !== p.name) parts.push(`تغيير اسم ${p.name} إلى ${name}`);
     if (bal !== p.balance) parts.push(`تعديل رصيد ${name} من ${fmt(p.balance)} إلى ${fmt(bal)}`);
-    act(parts.join(' · ') || `تعديل ${name}`, '✏️', () => { p.name = name; p.color = color; p.balance = bal; });
+    act(parts.join(' · ') || `تعديل ${name}`, 'pencil', () => { p.name = name; p.color = color; p.balance = bal; });
     closeSheet();
   },
   delPlayer(d) {
     const p = player(d.id);
     if (!confirm(`متأكد تحذف ${p.name}؟ بطاقاته ترجع للبنك.`)) return;
-    act(`حذف اللاعب ${p.name} ورجعت بطاقاته للبنك`, '🗑️', () => {
+    act(`حذف اللاعب ${p.name} ورجعت بطاقاته للبنك`, 'trash', () => {
       G.props.forEach(q => { if (q.owner === p.id) Object.assign(q, { owner: null, level: 0, mortgaged: false }); });
       G.players = G.players.filter(x => x.id !== p.id);
     });
@@ -923,12 +924,12 @@ const actions = {
   prop: d => sheetProp(d.id),
   buy(d) {
     const p = prop(d.id), b = val('bBuyer'), amt = num(val('bPrice'));
-    act(`${nameOf(b)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(b, 'bank', amt); p.owner = b; hint(`🃏 وأعطه بطاقة <b>${esc(p.name)}</b>`); });
+    act(`${nameOf(b)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, 'card', () => { move(b, 'bank', amt); p.owner = b; hint(`${I('card')} وأعطه بطاقة <b>${esc(p.name)}</b>`); });
     sheetProp(d.id);
   },
   give(d) {
     const p = prop(d.id), b = val('bBuyer');
-    act(`البنك سلّم ${p.name} لـ ${nameOf(b)} بدون فلوس`, '🎁', () => { p.owner = b; hint(`🎁 أعطِ ${esc(nameOf(b))} بطاقة <b>${esc(p.name)}</b>`); });
+    act(`البنك سلّم ${p.name} لـ ${nameOf(b)} بدون فلوس`, 'gift', () => { p.owner = b; hint(`${I('gift')} أعطِ ${esc(nameOf(b))} بطاقة <b>${esc(p.name)}</b>`); });
     sheetProp(d.id);
   },
   rent(d) {
@@ -948,38 +949,38 @@ const actions = {
     const nl = p.level + dir;
     const what = (dir > 0 ? (nl === 5 ? 'بنى فندق على' : 'بنى بيت على') : (p.level === 5 ? 'باع الفندق من' : 'باع بيت من'));
     const cost = dir > 0 ? p.house : Math.round(p.house / 2);
-    act(`${nameOf(p.owner)} ${what} ${p.name}${pay ? ` (${dir > 0 ? '-' : '+'}${fmt(cost)})` : ''}`, dir > 0 ? '🏠' : '🔨', () => {
+    act(`${nameOf(p.owner)} ${what} ${p.name}${pay ? ` (${dir > 0 ? '-' : '+'}${fmt(cost)})` : ''}`, dir > 0 ? 'house' : 'minus', () => {
       if (pay) dir > 0 ? move(p.owner, 'bank', cost) : move('bank', p.owner, cost);
       p.level = nl;
       hint(dir > 0
-        ? (nl === 5 ? `🏨 أعطه فندق، وخذ منه الـ4 بيوت، وحطه على <b>${esc(p.name)}</b>` : `🏠 أعطه بيت يحطه على <b>${esc(p.name)}</b>`)
-        : (nl === 4 ? `🏨 خذ منه الفندق، وأعطه 4 بيوت` : `🏠 خذ منه بيت من <b>${esc(p.name)}</b>`));
+        ? (nl === 5 ? `${I('hotel')} أعطه فندق، وخذ منه الـ4 بيوت، وحطه على <b>${esc(p.name)}</b>` : `${I('house')} أعطه بيت يحطه على <b>${esc(p.name)}</b>`)
+        : (nl === 4 ? `${I('hotel')} خذ منه الفندق، وأعطه 4 بيوت` : `${I('house')} خذ منه بيت من <b>${esc(p.name)}</b>`));
     });
     sheetProp(d.id);
   },
   mort(d) {
     const p = prop(d.id);
-    act(`${nameOf(p.owner)} رهن ${p.name} وأخذ ${fmt(p.mortgage)}`, '🏷️', () => { move('bank', p.owner, p.mortgage); p.mortgaged = true; hint(`🏷️ اقلب بطاقة <b>${esc(p.name)}</b> على وجه «مرهونة»`); });
+    act(`${nameOf(p.owner)} رهن ${p.name} وأخذ ${fmt(p.mortgage)}`, 'tag', () => { move('bank', p.owner, p.mortgage); p.mortgaged = true; hint(`${I('tag')} اقلب بطاقة <b>${esc(p.name)}</b> على وجه «مرهونة»`); });
     sheetProp(d.id);
   },
   unmort(d) {
     const p = prop(d.id), c = Math.round(p.mortgage * 1.1);
-    act(`${nameOf(p.owner)} فك رهن ${p.name} ودفع ${fmt(c)}`, '🔓', () => { move(p.owner, 'bank', c); p.mortgaged = false; hint(`🔓 اقلب بطاقة <b>${esc(p.name)}</b> على الوجه العادي`); });
+    act(`${nameOf(p.owner)} فك رهن ${p.name} ودفع ${fmt(c)}`, 'unlock', () => { move(p.owner, 'bank', c); p.mortgaged = false; hint(`${I('unlock')} اقلب بطاقة <b>${esc(p.name)}</b> على الوجه العادي`); });
     sheetProp(d.id);
   },
   trade(d) {
     const p = prop(d.id), to = val('tTo'), amt = num(val('tPrice')), from = p.owner;
-    act(`انتقلت ${p.name} من ${nameOf(from)} إلى ${nameOf(to)}${amt ? ` مقابل ${fmt(amt)}` : ''}`, '🔁', () => {
+    act(`انتقلت ${p.name} من ${nameOf(from)} إلى ${nameOf(to)}${amt ? ` مقابل ${fmt(amt)}` : ''}`, 'swap', () => {
       if (amt > 0) move(to, from, amt);
       p.owner = to;
-      hint(`🃏 خلّ ${esc(nameOf(from))} يعطي بطاقة <b>${esc(p.name)}</b> لـ ${esc(nameOf(to))}`);
+      hint(`${I('card')} خلّ ${esc(nameOf(from))} يعطي بطاقة <b>${esc(p.name)}</b> لـ ${esc(nameOf(to))}`);
     });
     sheetProp(d.id);
   },
   toBank(d) {
     const p = prop(d.id);
     if (!confirm(`ترجع ${p.name} للبنك بدون فلوس؟`)) return;
-    act(`رجعت ${p.name} من ${nameOf(p.owner)} للبنك`, '🏦', () => { hint(`🏦 خذ بطاقة <b>${esc(p.name)}</b> من ${esc(nameOf(p.owner))} ورجعها للبنك`); Object.assign(p, { owner: null, level: 0, mortgaged: false }); });
+    act(`رجعت ${p.name} من ${nameOf(p.owner)} للبنك`, 'bank', () => { hint(`${I('bank')} خذ بطاقة <b>${esc(p.name)}</b> من ${esc(nameOf(p.owner))} ورجعها للبنك`); Object.assign(p, { owner: null, level: 0, mortgaged: false }); });
     sheetProp(d.id);
   },
   newProp: () => sheetEditProp(null),
@@ -995,18 +996,18 @@ const actions = {
     const data = { name, en: val('eEn').trim(), group, price: num(val('ePrice')), mortgage: num(val('eMort')), house: $('#eHouse') ? num(val('eHouse')) : 0, rent };
     if (d.id) {
       const p = prop(d.id), changedType = groupOf(p.group).type !== type;
-      act(`تعديل بيانات ${name}`, '✏️', () => { Object.assign(p, data); if (type !== 'street') p.level = 0; });
+      act(`تعديل بيانات ${name}`, 'pencil', () => { Object.assign(p, data); if (type !== 'street') p.level = 0; });
       changedType ? sheetEditProp(d.id) : sheetProp(d.id);
     } else {
       const id = uid();
-      act(`إضافة بطاقة جديدة: ${name}`, '➕', () => { G.props.push({ id, ...data, owner: null, level: 0, mortgaged: false }); });
+      act(`إضافة بطاقة جديدة: ${name}`, 'plus', () => { G.props.push({ id, ...data, owner: null, level: 0, mortgaged: false }); });
       sheetProp(id);
     }
   },
   delProp(d) {
     const p = prop(d.id);
     if (!confirm(`تحذف بطاقة ${p.name}؟`)) return;
-    act(`حذف بطاقة ${p.name}`, '🗑️', () => { G.props = G.props.filter(q => q.id !== p.id); });
+    act(`حذف بطاقة ${p.name}`, 'trash', () => { G.props = G.props.filter(q => q.id !== p.id); });
     closeSheet();
   },
   photo: () => $('#photoInput').click(),
@@ -1017,7 +1018,7 @@ const actions = {
     G.photos = G.photos.filter(p => p.id !== d.id);
     save(); render(); closeSheet();
   },
-  openGame(d) { G = null; store.currentId = d.id; openGame(d.id); tab = 'players'; render(); toast('📂 فتحت ' + G.name); },
+  openGame(d) { G = null; store.currentId = d.id; openGame(d.id); tab = 'players'; render(); toast('فتحت' + G.name); },
   async delGame(d) {
     const g = store.games[d.id];
     if (!confirm(`تحذف "${g.name}" نهائيا؟`)) return;
@@ -1034,14 +1035,14 @@ const actions = {
     const g = makeGame(name.trim(), G);
     if (keep) g.players = G.players.map(p => ({ ...p, id: uid(), balance: g.startMoney }));
     store.games[g.id] = g; G = g; tab = 'players';
-    save(); render(); toast('🎲 بدأت لعبة جديدة');
+    save(); render(); toast('بدأت لعبة جديدة');
   },
   saveSettings() {
     G.name = val('setName').trim() || G.name;
     G.startMoney = num(val('setStart')) || G.startMoney;
     G.goAmount = num(val('setGo')) || G.goAmount;
     G.currency = val('setCur').trim();
-    save(); render(); toast('💾 انحفظت الإعدادات');
+    save(); render(); toast('انحفظت الإعدادات');
   },
   device(d) { setDevice(d.v); render(); toast('صار الشكل على: ' + (d.v === 'auto' ? 'تلقائي (' + DEVICES[window.AUTO_DEVICE] + ')' : DEVICES[d.v])); },
   export: exportAll,
@@ -1049,14 +1050,14 @@ const actions = {
   gotoGames() { tab = 'more'; render(); setTimeout(() => $('.game-item')?.scrollIntoView({ block: 'center' }), 50); },
   resetGame() {
     if (!confirm('ترجع كل اللاعبين لفلوس البداية وكل البطاقات للبنك؟ (تقدر تتراجع)')) return;
-    act('إعادة اللعبة من الصفر', '🔄', () => {
+    act('إعادة اللعبة من الصفر', 'refresh', () => {
       G.players.forEach(p => p.balance = G.startMoney);
       G.props.forEach(p => Object.assign(p, { owner: null, level: 0, mortgaged: false }));
     });
   },
   resetProps() {
     if (!confirm('ترجع البطاقات للأسماء والأسعار الأصلية؟ تعديلاتك على البطاقات بتروح، والبطاقات ترجع للبنك.')) return;
-    act('رجعت البطاقات الأصلية', '🃏', () => {
+    act('رجعت البطاقات الأصلية', 'card', () => {
       G.props = defaultProps().map(p => ({ ...p, owner: null, level: 0, mortgaged: false }));
     });
   },
@@ -1096,6 +1097,7 @@ $('#sheetOverlay').addEventListener('click', e => { if (e.target.id === 'sheetOv
 $('#photoInput').onchange = e => { const f = e.target.files[0]; if (f) addPhoto(f); e.target.value = ''; };
 $('#importInput').onchange = e => { const f = e.target.files[0]; if (f) importAll(f); e.target.value = ''; };
 
+$$('[data-ic]').forEach(e => { e.innerHTML = I(e.dataset.ic); });
 calcInit();
 render();
 
