@@ -385,7 +385,7 @@ html[data-device="laptop"] .ptop:hover .nm b { text-decoration: underline; text-
 .reasons button { border: 2px solid var(--line); background: var(--card); border-radius: 14px; padding: 10px 4px; font-weight: 800; font-size: 14px; }
 .reasons button i { display: block; font-style: normal; font-size: 22px; }
 .reasons button.on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 18%, var(--card)); }
-.qcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto; padding: 3px; }
+.qcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; padding: 3px; }
 .qcards .prop .deed-h { min-height: 46px; font-size: 13px; padding: 6px; }
 .qcards .prop .body { padding: 5px; gap: 3px; }
 .qcards .prop.on { outline: 3px solid var(--gold); outline-offset: 1px; }
@@ -395,3 +395,27 @@ html[data-device="laptop"] .ptop:hover .nm b { text-decoration: underline; text-
 .qresult .amt { font-size: 34px; font-weight: 800; color: var(--muted); margin: 4px 0; }
 .qresult.ready .amt { color: var(--brand2); }
 .qresult small { color: var(--muted); display: block; }
+
+.qcards .prop.no { opacity: .38; filter: grayscale(.5); }
+.qcards .why { font-size: 11.5px; font-weight: 800; color: var(--muted); }
+
+/* ===== رسالة "وش تسوي" ===== */
+.instr-overlay { z-index: 70; align-items: center; padding: 16px; }
+.instr {
+  background: var(--card); width: 100%; max-width: 420px; border-radius: 26px; padding: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35); animation: pop .18s cubic-bezier(.2, .8, .3, 1.2);
+}
+@keyframes pop { from { transform: scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+.iline { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 18px; margin-bottom: 10px; font-size: 20px; font-weight: 800; line-height: 1.5; }
+.iline.give { background: color-mix(in srgb, #17864f 13%, var(--card)); }
+.iline.take { background: color-mix(in srgb, #d23a2f 12%, var(--card)); }
+.iline.pay { background: color-mix(in srgb, #1f6fd1 12%, var(--card)); }
+.iic { font-size: 38px; flex: none; }
+.iname { color: var(--c); }
+.imoney { font-size: 34px; direction: ltr; display: inline-block; }
+.iline small { display: block; font-size: 14px; color: var(--muted); font-weight: 700; }
+.ihint { padding: 12px 14px; border-radius: 16px; background: var(--soft); font-size: 17px; font-weight: 700; line-height: 1.6; }
+
+.set-h { display: flex; align-items: baseline; gap: 8px; margin: 12px 4px 8px; font-weight: 800; font-size: 14px; }
+.set-h:first-of-type { margin-top: 2px; }
+.set-h small { color: var(--muted); font-weight: 600; font-size: 12px; }

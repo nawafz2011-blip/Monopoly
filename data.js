@@ -7,14 +7,22 @@
 const DEFAULT_GROUPS = [
   { id: 'brown',     name: 'وردي',          color: '#b8307a', type: 'street' },
   { id: 'lightblue', name: 'أزرق فاتح',     color: '#6ec3ea', type: 'street' },
-  { id: 'pink',      name: 'بنفسجي',        color: '#7a3fa3', type: 'street' },
-  { id: 'orange',    name: 'أحمر وردي',     color: '#d81b55', type: 'street' },
-  { id: 'red',       name: 'أحمر',          color: '#e3261b', type: 'street' },
+  { id: 'pink',      name: 'بنفسجي',        color: '#7a3fa3', type: 'street', family: 'purple' },
+  { id: 'orange',    name: 'أحمر',          color: '#d81b55', type: 'street', family: 'red' },
+  { id: 'red',       name: 'أحمر',          color: '#e3261b', type: 'street', family: 'red' },
   { id: 'yellow',    name: 'أصفر',          color: '#f2d200', type: 'street' },
   { id: 'green',     name: 'أخضر',          color: '#1f9e58', type: 'street' },
-  { id: 'darkblue',  name: 'بنفسجي غامق',   color: '#4a2585', type: 'street' },
+  { id: 'darkblue',  name: 'بنفسجي',        color: '#4a2585', type: 'street', family: 'purple' },
   { id: 'station',   name: 'المحطات',       color: '#2b2b2b', type: 'station' },
   { id: 'utility',   name: 'الشركات',       color: '#6f8496', type: 'utility' },
+];
+
+// الألوان اللي تطلع مع بعض في صفحة البطاقات (القوانين تبقى كل طقم لحاله)
+const FAMILIES = [
+  { id: 'brown' }, { id: 'lightblue' },
+  { id: 'purple', name: 'بنفسجي', color: '#6a33a0', groups: ['pink', 'darkblue'] },
+  { id: 'red', name: 'أحمر', color: '#e3261b', groups: ['orange', 'red'] },
+  { id: 'yellow' }, { id: 'green' }, { id: 'station' }, { id: 'utility' },
 ];
 
 // في هذي النسخة: سعر البيت والفندق 50 لكل البطاقات، وقيمة الرهن = سعر الأرض

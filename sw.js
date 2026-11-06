@@ -1,5 +1,5 @@
 // يخلي الموقع يشتغل حتى بدون إنترنت بعد أول فتح
-const CACHE = 'bankhelper-v5';
+const CACHE = 'bankhelper-v6';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'data.js', 'icon.svg', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

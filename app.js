@@ -83,15 +83,41 @@ function toast(msg) {
 }
 
 /* كل عملية تمر من هنا: تنحفظ نسخة للتراجع + تنكتب في السجل */
+let pendingMoves = [], pendingHint = '';
 function act(text, icon, fn) {
   const snap = JSON.stringify({ players: G.players, props: G.props, log: G.log });
+  pendingMoves = []; pendingHint = '';
   const res = fn();
   if (res === false) return false;
   G.log.unshift({ id: uid(), t: Date.now(), text, icon });
   const u = getUndo(); u.push(snap); setUndo(u);
-  save(); render(); toast(icon + ' ' + text);
+  save(); render();
+  if (pendingMoves.length || pendingHint) showInstruction(pendingMoves, pendingHint);
+  else toast(icon + ' ' + text);
+  pendingMoves = []; pendingHint = '';
   return true;
 }
+
+/* رسالة كبيرة للبنكي: وش يسوي بالفلوس الورق */
+function showInstruction(moves, hint) {
+  const P = id => {
+    const p = id === 'bank' ? { name: 'البنك', color: '#0e4d2f' } : player(id);
+    return `<b class="iname" style="--c:${p.color}">${esc(p.name)}</b>`;
+  };
+  const lines = moves.map(m => {
+    const money = `<span class="imoney">${fmt(m.amt)}</span>`;
+    if (m.from === 'bank') return `<div class="iline give"><span class="iic">🏦</span><div>أعطِ ${P(m.to)}<br>${money}<small>من البنك</small></div></div>`;
+    if (m.to === 'bank') return `<div class="iline take"><span class="iic">💵</span><div>خذ من ${P(m.from)}<br>${money}<small>وحطها في البنك</small></div></div>`;
+    return `<div class="iline pay"><span class="iic">🔁</span><div>خلّ ${P(m.from)} يعطي ${P(m.to)}<br>${money}</div></div>`;
+  }).join('');
+  $('#instrBox').innerHTML = `${lines}${hint ? `<div class="ihint">${hint}</div>` : ''}
+    <button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ✅</button>`;
+  clearTimeout(toast._t); $('#toast').classList.remove('show');
+  $('#instrOverlay').classList.add('show');
+  $('#instrOk').onclick = hideInstruction;
+  setTimeout(() => $('#instrOk')?.focus(), 30);
+}
+function hideInstruction() { $('#instrOverlay').classList.remove('show'); }
 function undo() {
   const u = getUndo();
   if (!u.length) return toast('ما فيه شي تتراجع عنه');
@@ -103,9 +129,12 @@ function undo() {
 }
 
 function move(from, to, amt) {
+  if (!amt || from === to) return;
   if (from !== 'bank') player(from).balance -= amt;
   if (to !== 'bank') player(to).balance += amt;
+  pendingMoves.push({ from, to, amt });
 }
+const hint = (h) => { pendingHint = h; };
 function moneyText(from, to, amt, note) {
   const n = note ? ` (${note})` : '';
   if (from === 'bank') return `البنك أعطى ${nameOf(to)} ${fmt(amt)}${n}`;
@@ -208,12 +237,18 @@ function viewPlayers() {
 
 function viewProps() {
   let h = `<button class="btn ghost wide" data-act="newProp" style="margin-bottom:14px">➕ بطاقة جديدة</button><div class="groups">`;
-  for (const g of DEFAULT_GROUPS) {
-    const ps = G.props.filter(p => p.group === g.id);
-    if (!ps.length) continue;
-    h += `<section class="grp" style="--c:${g.color}"><div class="grp-h">
-      <span class="dot"></span><span>${g.name}</span><span class="count">${ps.filter(p => p.owner).length}/${ps.length}</span></div>
-      <div class="pgrid">${ps.map(propCard).join('')}</div></section>`;
+  const used = new Set();
+  const fams = FAMILIES.map(f => f.groups ? f : { ...groupOf(f.id), groups: [f.id] });
+  // أي مجموعة جديدة مو في القائمة تطلع لحالها
+  DEFAULT_GROUPS.forEach(g => { if (!fams.some(f => f.groups.includes(g.id))) fams.push({ ...g, groups: [g.id] }); });
+  for (const f of fams) {
+    const sets = f.groups.map(gid => G.props.filter(p => p.group === gid)).filter(s => s.length);
+    if (!sets.length) continue;
+    const all = sets.flat();
+    h += `<section class="grp" style="--c:${f.color}"><div class="grp-h">
+      <span class="dot"></span><span>${f.name}</span><span class="count">${all.filter(p => p.owner).length}/${all.length}</span></div>
+      ${sets.map((s, i) => `${sets.length > 1 ? `<div class="set-h"><span>طقم ${i + 1}</span><small>${s.length} بطاقات — لازم يملكها كلها عشان يبني</small></div>` : ''}
+      <div class="pgrid">${s.map(propCard).join('')}</div>`).join('')}</section>`;
   }
   return h + '</div>';
 }
@@ -596,14 +631,33 @@ function qRules(r) {
     default: return { from: all, to: all, needCard: false };
   }
 }
-function qCards() {
-  const r = Q.reason;
-  if (r === 'rent') return G.props.filter(p => p.owner && !p.mortgaged && p.owner !== Q.from && (!Q.to || p.owner === Q.to));
-  if (r === 'mort') return Q.to ? G.props.filter(p => p.owner === Q.to && !p.mortgaged && !p.level) : [];
-  if (r === 'unmort') return Q.from ? G.props.filter(p => p.owner === Q.from && p.mortgaged) : [];
-  if (r === 'buy') return G.props.filter(p => !p.owner);
-  return [];
+// ليش البطاقة ما تنفع لهذي العملية؟ (فاضي = تنفع)
+function qWhyNot(p) {
+  const r = Q.reason, own = p.owner ? 'حق ' + nameOf(p.owner) : 'عند البنك';
+  if (r === 'rent') {
+    if (!p.owner) return 'عند البنك';
+    if (p.owner === Q.from) return 'حقه هو';
+    if (p.mortgaged) return 'مرهونة';
+    if (Q.to && p.owner !== Q.to) return own;
+    return '';
+  }
+  if (r === 'mort') {
+    if (!Q.to) return 'اختر اللاعب';
+    if (p.owner !== Q.to) return own;
+    if (p.mortgaged) return 'مرهونة';
+    if (p.level) return 'عليها بيوت';
+    return '';
+  }
+  if (r === 'unmort') {
+    if (!Q.from) return 'اختر اللاعب';
+    if (p.owner !== Q.from) return own;
+    if (!p.mortgaged) return 'مو مرهونة';
+    return '';
+  }
+  if (r === 'buy') return p.owner ? own : '';
+  return 'x';
 }
+function qCards() { return G.props.filter(p => !qWhyNot(p)); }
 function qAmount() {
   const p = Q.card && prop(Q.card);
   switch (Q.reason) {
@@ -647,23 +701,25 @@ function renderQuick() {
     rent: Q.to ? `وين وقف؟ (بطاقات ${esc(nameOf(Q.to))})` : 'وين وقف؟',
     mort: Q.to ? `أي بطاقة يرهن؟ (بطاقات ${esc(nameOf(Q.to))})` : 'أي بطاقة يرهن؟',
     unmort: Q.from ? `أي بطاقة يفك رهنها؟` : 'أي بطاقة يفك رهنها؟',
-    buy: 'أي بطاقة يشتري؟ (اللي عند البنك)',
+    buy: 'أي بطاقة يشتري؟',
   }[Q.reason];
   const emptyMsg = {
     rent: Q.from ? 'ما فيه بطاقات لغيره عليها إيجار' : 'اختر اللي يدفع أول',
     mort: Q.to ? 'ما عنده بطاقات ينفع يرهنها (لازم تكون بدون بيوت وغير مرهونة)' : 'اختر اللاعب أول',
     unmort: Q.from ? 'ما عنده بطاقات مرهونة' : 'اختر اللاعب أول',
     buy: 'كل البطاقات انباعت',
+    _: '',
   }[Q.reason];
   const cardStep = R.needCard ? `
     <div class="step"><span class="n">4</span>${cardTitle}</div>
-    ${cards.length ? `<div class="qcards">${cards.map(p => {
-      const g = groupOf(p.group), o = p.owner && player(p.owner);
-      return `<button class="prop ${Q.card === p.id ? 'on' : ''} ${p.mortgaged ? 'mort' : ''}" style="--c:${g.color}" data-act="qCard" data-v="${p.id}">
+    ${cards.length ? '' : `<p class="muted small">${emptyMsg}</p>`}
+    <div class="qcards">${DEFAULT_GROUPS.map(g => G.props.filter(p => p.group === g.id).map(p => {
+      const why = qWhyNot(p), o = p.owner && player(p.owner);
+      return `<button class="prop ${Q.card === p.id ? 'on' : ''} ${why ? 'no' : ''}" style="--c:${g.color}" data-act="qCard" data-v="${p.id}" ${why ? 'disabled' : ''}>
         <span class="deed-h ${isLight(p.group) ? 'light' : ''}"><span>${esc(p.name)}</span></span>
         <span class="body"><span class="pr">${fmt(p.price)}</span><span class="houses">${levelText(p.level)}</span>
-        ${Q.reason === 'rent' && o && !Q.to ? `<span class="owner-chip" style="--oc:${o.color}"><span class="od"></span>${esc(o.name)}</span>` : ''}</span></button>`;
-    }).join('')}</div>` : `<p class="muted small">${emptyMsg}</p>`}` : '';
+        ${why ? `<span class="why">${esc(why)}</span>` : (o && Q.reason === 'rent' && !Q.to ? `<span class="owner-chip" style="--oc:${o.color}"><span class="od"></span>${esc(o.name)}</span>` : '')}</span></button>`;
+    }).join('')).join('')}</div>` : '';
 
   const card = Q.card && prop(Q.card);
   const needDice = Q.reason === 'rent' && card && groupOf(card.group).type === 'utility';
@@ -714,9 +770,9 @@ function qDo() {
     case 'rent': ok = transfer(f, t, amt, 'إيجار ' + p.name); break;
     case 'go': ok = transfer('bank', t, amt, 'خط البداية'); break;
     case 'custom': ok = transfer(f, t, amt, Q.note.trim()); break;
-    case 'mort': ok = act(`${nameOf(t)} رهن ${p.name} وأخذ ${fmt(amt)}`, '🏷️', () => { move('bank', t, amt); p.mortgaged = true; }); break;
-    case 'unmort': ok = act(`${nameOf(f)} فك رهن ${p.name} ودفع ${fmt(amt)}`, '🔓', () => { move(f, 'bank', amt); p.mortgaged = false; }); break;
-    case 'buy': ok = act(`${nameOf(f)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(f, 'bank', amt); p.owner = f; }); break;
+    case 'mort': ok = act(`${nameOf(t)} رهن ${p.name} وأخذ ${fmt(amt)}`, '🏷️', () => { move('bank', t, amt); p.mortgaged = true; hint(`🏷️ اقلب بطاقة <b>${esc(p.name)}</b> على وجه «مرهونة»`); }); break;
+    case 'unmort': ok = act(`${nameOf(f)} فك رهن ${p.name} ودفع ${fmt(amt)}`, '🔓', () => { move(f, 'bank', amt); p.mortgaged = false; hint(`🔓 اقلب بطاقة <b>${esc(p.name)}</b> على الوجه العادي`); }); break;
+    case 'buy': ok = act(`${nameOf(f)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(f, 'bank', amt); p.owner = f; hint(`🃏 وأعطه بطاقة <b>${esc(p.name)}</b>`); }); break;
   }
   if (ok) closeSheet();
 }
@@ -802,12 +858,12 @@ const actions = {
   prop: d => sheetProp(d.id),
   buy(d) {
     const p = prop(d.id), b = val('bBuyer'), amt = num(val('bPrice'));
-    act(`${nameOf(b)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(b, 'bank', amt); p.owner = b; });
+    act(`${nameOf(b)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(b, 'bank', amt); p.owner = b; hint(`🃏 وأعطه بطاقة <b>${esc(p.name)}</b>`); });
     sheetProp(d.id);
   },
   give(d) {
     const p = prop(d.id), b = val('bBuyer');
-    act(`البنك سلّم ${p.name} لـ ${nameOf(b)} بدون فلوس`, '🎁', () => { p.owner = b; });
+    act(`البنك سلّم ${p.name} لـ ${nameOf(b)} بدون فلوس`, '🎁', () => { p.owner = b; hint(`🎁 أعطِ ${esc(nameOf(b))} بطاقة <b>${esc(p.name)}</b>`); });
     sheetProp(d.id);
   },
   rent(d) {
@@ -830,17 +886,20 @@ const actions = {
     act(`${nameOf(p.owner)} ${what} ${p.name}${pay ? ` (${dir > 0 ? '-' : '+'}${fmt(cost)})` : ''}`, dir > 0 ? '🏠' : '🔨', () => {
       if (pay) dir > 0 ? move(p.owner, 'bank', cost) : move('bank', p.owner, cost);
       p.level = nl;
+      hint(dir > 0
+        ? (nl === 5 ? `🏨 أعطه فندق، وخذ منه الـ4 بيوت، وحطه على <b>${esc(p.name)}</b>` : `🏠 أعطه بيت يحطه على <b>${esc(p.name)}</b>`)
+        : (nl === 4 ? `🏨 خذ منه الفندق، وأعطه 4 بيوت` : `🏠 خذ منه بيت من <b>${esc(p.name)}</b>`));
     });
     sheetProp(d.id);
   },
   mort(d) {
     const p = prop(d.id);
-    act(`${nameOf(p.owner)} رهن ${p.name} وأخذ ${fmt(p.mortgage)}`, '🏷️', () => { move('bank', p.owner, p.mortgage); p.mortgaged = true; });
+    act(`${nameOf(p.owner)} رهن ${p.name} وأخذ ${fmt(p.mortgage)}`, '🏷️', () => { move('bank', p.owner, p.mortgage); p.mortgaged = true; hint(`🏷️ اقلب بطاقة <b>${esc(p.name)}</b> على وجه «مرهونة»`); });
     sheetProp(d.id);
   },
   unmort(d) {
     const p = prop(d.id), c = Math.round(p.mortgage * 1.1);
-    act(`${nameOf(p.owner)} فك رهن ${p.name} ودفع ${fmt(c)}`, '🔓', () => { move(p.owner, 'bank', c); p.mortgaged = false; });
+    act(`${nameOf(p.owner)} فك رهن ${p.name} ودفع ${fmt(c)}`, '🔓', () => { move(p.owner, 'bank', c); p.mortgaged = false; hint(`🔓 اقلب بطاقة <b>${esc(p.name)}</b> على الوجه العادي`); });
     sheetProp(d.id);
   },
   trade(d) {
@@ -848,13 +907,14 @@ const actions = {
     act(`انتقلت ${p.name} من ${nameOf(from)} إلى ${nameOf(to)}${amt ? ` مقابل ${fmt(amt)}` : ''}`, '🔁', () => {
       if (amt > 0) move(to, from, amt);
       p.owner = to;
+      hint(`🃏 خلّ ${esc(nameOf(from))} يعطي بطاقة <b>${esc(p.name)}</b> لـ ${esc(nameOf(to))}`);
     });
     sheetProp(d.id);
   },
   toBank(d) {
     const p = prop(d.id);
     if (!confirm(`ترجع ${p.name} للبنك بدون فلوس؟`)) return;
-    act(`رجعت ${p.name} من ${nameOf(p.owner)} للبنك`, '🏦', () => { Object.assign(p, { owner: null, level: 0, mortgaged: false }); });
+    act(`رجعت ${p.name} من ${nameOf(p.owner)} للبنك`, '🏦', () => { hint(`🏦 خذ بطاقة <b>${esc(p.name)}</b> من ${esc(nameOf(p.owner))} ورجعها للبنك`); Object.assign(p, { owner: null, level: 0, mortgaged: false }); });
     sheetProp(d.id);
   },
   newProp: () => sheetEditProp(null),
@@ -948,6 +1008,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'mAmt') return $('[data-act=doMoney]')?.click();
   const typing = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
   const calcOpen = $('#calcOverlay').classList.contains('show');
+  if ($('#instrOverlay').classList.contains('show') && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); return hideInstruction(); }
   if (e.key === 'Escape') { if (calcOpen) $('#calcOverlay').classList.remove('show'); else closeSheet(); return; }
   if (calcOpen && !typing) {
     const map = { '*': '×', '/': '÷', '-': '−', '+': '+', 'Enter': '=', '=': '=', 'Backspace': '⌫', 'Delete': 'C' };
