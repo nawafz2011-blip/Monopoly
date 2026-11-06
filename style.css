@@ -360,3 +360,38 @@ html[data-device="laptop"] .sheet::before { display: none; }
 html[data-device="laptop"] .act:hover, html[data-device="laptop"] .btn:hover { filter: brightness(1.07); }
 html[data-device="laptop"] .prop:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 html[data-device="laptop"] .ptop:hover .nm b { text-decoration: underline; text-underline-offset: 4px; }
+
+/* ===== ⚡ عملية جديدة ===== */
+.quick-btn {
+  width: 100%; border: 0; border-radius: 20px; padding: 16px; margin-bottom: 14px;
+  background: linear-gradient(135deg, #0e4d2f, #17864f); color: #fff; font-weight: 800; font-size: 19px;
+  display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 8px 22px rgba(14, 77, 47, .3);
+}
+.quick-btn small { font-weight: 600; opacity: .8; font-size: 13px; }
+.step { display: flex; align-items: center; gap: 8px; font-weight: 800; margin: 16px 0 8px; font-size: 15px; }
+.step small { color: var(--muted); font-weight: 600; }
+.step .n { width: 24px; height: 24px; border-radius: 50%; background: var(--brand2); color: #fff; display: grid; place-items: center; font-size: 13px; flex: none; }
+.who { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+.who button {
+  border: 2px solid var(--line); background: var(--card); border-radius: 16px; padding: 10px 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; font-weight: 800; font-size: 14px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.who .av { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-size: 17px; }
+.who button.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--card)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent); }
+.who button:disabled { opacity: .3; }
+.arrow { text-align: center; font-size: 22px; color: var(--muted); margin: 6px 0 -4px; }
+.reasons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.reasons button { border: 2px solid var(--line); background: var(--card); border-radius: 14px; padding: 10px 4px; font-weight: 800; font-size: 14px; }
+.reasons button i { display: block; font-style: normal; font-size: 22px; }
+.reasons button.on { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 18%, var(--card)); }
+.qcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto; padding: 3px; }
+.qcards .prop .deed-h { min-height: 46px; font-size: 13px; padding: 6px; }
+.qcards .prop .body { padding: 5px; gap: 3px; }
+.qcards .prop.on { outline: 3px solid var(--gold); outline-offset: 1px; }
+.qresult { margin-top: 16px; border-radius: 18px; padding: 14px; background: var(--soft); border: 2px dashed var(--line); text-align: center; transition: .15s; }
+.qresult.ready { background: color-mix(in srgb, var(--brand2) 10%, var(--card)); border-color: var(--brand2); }
+.qresult .flow { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 800; font-size: 17px; }
+.qresult .amt { font-size: 34px; font-weight: 800; color: var(--muted); margin: 4px 0; }
+.qresult.ready .amt { color: var(--brand2); }
+.qresult small { color: var(--muted); display: block; }

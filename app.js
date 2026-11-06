@@ -146,7 +146,7 @@ function render() {
     else { G = makeGame(); save(); }
   }
   $('#gameName').textContent = G.name;
-  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${G.players.length} لاعب · آخر حفظ ${timeStr(G.updated)}`;
+  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${G.players.length} لاعب · 💾 ${timeStr(G.updated)}`;
   $('#undoBtn').disabled = !getUndo().length;
   $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   const v = $('#view');
@@ -180,6 +180,7 @@ function viewPlayers() {
   } else {
     h += `<div class="empty"><div class="big">🎲</div><h2>يلا نبدأ!</h2><p>أضف اللاعبين تحت، وكل واحد يبدأ بـ ${fmt(G.startMoney)}</p></div>`;
   }
+  if (G.players.length) h += `<button class="quick-btn" data-act="quick">⚡ عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
   for (const p of G.players) {
     const st = playerStats(p.id);
@@ -332,6 +333,7 @@ function sheetPlayer(pid) {
       <div class="muted small" style="margin-top:8px">🃏 ${st.props.length} بطاقة · 🏠 ${st.houses} بيت · 🏨 ${st.hotels} فندق</div>
     </div>
     <div class="card"><h3>البطاقات</h3>${list || '<p class="muted">ما عنده بطاقات</p>'}</div>
+    <button class="quick-btn" data-act="quick" data-from="${pid}">⚡ عملية لـ ${esc(p.name)}</button>
     <div class="card"><h3>تعديل</h3>
       <label class="f">الاسم</label><input id="pName" value="${esc(p.name)}">
       <label class="f">اللون</label>
@@ -569,11 +571,193 @@ function calcInit() {
   $('#calcOverlay').addEventListener('click', e => { if (e.target.id === 'calcOverlay') $('#calcOverlay').classList.remove('show'); });
 }
 
+
+/* ---------------- ⚡ عملية جديدة (من ← إلى + السبب + البطاقة) ---------------- */
+const REASONS = [
+  { id: 'rent', icon: '💰', name: 'إيجار' },
+  { id: 'mort', icon: '🏷️', name: 'رهن' },
+  { id: 'unmort', icon: '🔓', name: 'فك رهن' },
+  { id: 'buy', icon: '🃏', name: 'شراء' },
+  { id: 'go', icon: '🏁', name: 'البداية' },
+  { id: 'custom', icon: '✏️', name: 'مبلغ' },
+];
+let Q = null;
+
+// وش ينفع لكل سبب: مين يدفع، مين ياخذ، وأي بطاقات تطلع
+function qRules(r) {
+  const players = G.players.map(p => p.id);
+  const all = ['bank', ...players];
+  switch (r) {
+    case 'rent': return { from: players, to: players, needCard: true };
+    case 'mort': return { from: ['bank'], to: players, needCard: true };
+    case 'unmort': return { from: players, to: ['bank'], needCard: true };
+    case 'buy': return { from: players, to: ['bank'], needCard: true };
+    case 'go': return { from: ['bank'], to: players, needCard: false };
+    default: return { from: all, to: all, needCard: false };
+  }
+}
+function qCards() {
+  const r = Q.reason;
+  if (r === 'rent') return G.props.filter(p => p.owner && !p.mortgaged && p.owner !== Q.from && (!Q.to || p.owner === Q.to));
+  if (r === 'mort') return Q.to ? G.props.filter(p => p.owner === Q.to && !p.mortgaged && !p.level) : [];
+  if (r === 'unmort') return Q.from ? G.props.filter(p => p.owner === Q.from && p.mortgaged) : [];
+  if (r === 'buy') return G.props.filter(p => !p.owner);
+  return [];
+}
+function qAmount() {
+  const p = Q.card && prop(Q.card);
+  switch (Q.reason) {
+    case 'rent': return p ? rentOf(p, num(Q.dice)) : null;
+    case 'mort': return p ? p.mortgage : null;
+    case 'unmort': return p ? Math.round(p.mortgage * 1.1) : null;
+    case 'buy': return Q.amount !== '' ? num(Q.amount) : (p ? p.price : null);
+    case 'go': return G.goAmount;
+    default: return Q.amount !== '' ? num(Q.amount) : null;
+  }
+}
+// يعبي الأشياء الواضحة لحاله
+function qAuto() {
+  const R = qRules(Q.reason);
+  if (!R.from.includes(Q.from)) Q.from = null;
+  if (!R.to.includes(Q.to)) Q.to = null;
+  if (R.from.length === 1) Q.from = R.from[0];
+  if (R.to.length === 1) Q.to = R.to[0];
+  if (Q.from && Q.from === Q.to) Q.to = null;
+  if (Q.card && !qCards().some(p => p.id === Q.card)) Q.card = null;
+  if (Q.reason === 'rent' && Q.card) Q.to = prop(Q.card).owner;
+}
+
+function sheetQuick(pre = {}) {
+  if (!G.players.length) return toast('أضف لاعبين أول');
+  Q = { reason: 'rent', from: null, to: null, card: null, amount: '', dice: '', note: '', ...pre };
+  qAuto();
+  renderQuick();
+}
+function renderQuick() {
+  const R = qRules(Q.reason);
+  const who = (side, list, sel, other) => `<div class="who">${['bank', ...G.players.map(p => p.id)].map(id => {
+    const ok = list.includes(id) && id !== other;
+    const p = id === 'bank' ? { name: 'البنك', color: '#0e4d2f' } : player(id);
+    return `<button class="${sel === id ? 'on' : ''}" style="--c:${p.color}" data-act="qPick" data-side="${side}" data-v="${id}" ${ok ? '' : 'disabled'}>
+      <span class="av" style="background:${p.color}">${id === 'bank' ? '🏦' : esc(p.name.trim()[0] || '?')}</span>${esc(p.name)}</button>`;
+  }).join('')}</div>`;
+
+  const cards = qCards();
+  const cardTitle = {
+    rent: Q.to ? `وين وقف؟ (بطاقات ${esc(nameOf(Q.to))})` : 'وين وقف؟',
+    mort: Q.to ? `أي بطاقة يرهن؟ (بطاقات ${esc(nameOf(Q.to))})` : 'أي بطاقة يرهن؟',
+    unmort: Q.from ? `أي بطاقة يفك رهنها؟` : 'أي بطاقة يفك رهنها؟',
+    buy: 'أي بطاقة يشتري؟ (اللي عند البنك)',
+  }[Q.reason];
+  const emptyMsg = {
+    rent: Q.from ? 'ما فيه بطاقات لغيره عليها إيجار' : 'اختر اللي يدفع أول',
+    mort: Q.to ? 'ما عنده بطاقات ينفع يرهنها (لازم تكون بدون بيوت وغير مرهونة)' : 'اختر اللاعب أول',
+    unmort: Q.from ? 'ما عنده بطاقات مرهونة' : 'اختر اللاعب أول',
+    buy: 'كل البطاقات انباعت',
+  }[Q.reason];
+  const cardStep = R.needCard ? `
+    <div class="step"><span class="n">4</span>${cardTitle}</div>
+    ${cards.length ? `<div class="qcards">${cards.map(p => {
+      const g = groupOf(p.group), o = p.owner && player(p.owner);
+      return `<button class="prop ${Q.card === p.id ? 'on' : ''} ${p.mortgaged ? 'mort' : ''}" style="--c:${g.color}" data-act="qCard" data-v="${p.id}">
+        <span class="deed-h ${isLight(p.group) ? 'light' : ''}"><span>${esc(p.name)}</span></span>
+        <span class="body"><span class="pr">${fmt(p.price)}</span><span class="houses">${levelText(p.level)}</span>
+        ${Q.reason === 'rent' && o && !Q.to ? `<span class="owner-chip" style="--oc:${o.color}"><span class="od"></span>${esc(o.name)}</span>` : ''}</span></button>`;
+    }).join('')}</div>` : `<p class="muted small">${emptyMsg}</p>`}` : '';
+
+  const card = Q.card && prop(Q.card);
+  const needDice = Q.reason === 'rent' && card && groupOf(card.group).type === 'utility';
+  const extra = needDice
+    ? `<label class="f">🎲 كم مجموع النرد؟</label><input id="qDice" type="number" inputmode="numeric" placeholder="مثلا 7" value="${esc(Q.dice)}">`
+    : (Q.reason === 'custom' || Q.reason === 'buy')
+      ? `<label class="f">${Q.reason === 'buy' ? 'السعر (غيّره لو مزاد)' : 'المبلغ'}</label>
+         <input id="qAmt" class="big-amount" type="number" inputmode="numeric" placeholder="${Q.reason === 'buy' && card ? card.price : '0'}" value="${esc(Q.amount)}" data-amount>
+         ${Q.reason === 'custom' ? `<div class="chips">${[10, 20, 50, 100, 200, 500].map(v => `<button class="chip" data-act="qAdd" data-v="${v}">+${v}</button>`).join('')}</div>
+         <label class="f">ملاحظة (اختياري)</label><input id="qNote" value="${esc(Q.note)}" placeholder="مثلا: بطاقة حظ">
+         <div class="chips">${['بطاقة حظ', 'صندوق الجماعة', 'السجن', 'دين', ...TAXES.map(t => t.name)].map(n => `<button class="chip" data-act="qNoteSet" data-v="${n}">${n}</button>`).join('')}</div>` : ''}`
+      : '';
+
+  const amt = qAmount();
+  const ready = Q.from && Q.to && Q.from !== Q.to && (!R.needCard || Q.card) && amt !== null && (amt > 0 || Q.reason === 'buy');
+  const note = {
+    rent: card ? `إيجار ${card.name}${card.level ? ' مع ' + levelText(card.level) : ''}${!card.level && groupOf(card.group).type === 'street' && ownsFullSet(card) ? ' (ضعف — اللون كامل)' : ''}` : '',
+    mort: card ? `${card.name} بتصير مرهونة` : '',
+    unmort: card ? `فك رهن ${card.name} (القيمة + 10%)` : '',
+    buy: card ? `${card.name} بتصير لـ ${nameOf(Q.from)}` : '',
+    go: 'مرّ على خط البداية',
+    custom: Q.note,
+  }[Q.reason];
+  const result = `<div class="qresult ${ready ? 'ready' : ''}">
+    <div class="flow"><span>${Q.from ? esc(nameOf(Q.from)) : '؟'}</span><span>⬅</span><span>${Q.to ? esc(nameOf(Q.to)) : '؟'}</span></div>
+    <div class="amt">${amt === null ? '—' : fmt(amt)}</div>
+    <small>${ready ? esc(note || '') + (Q.reason !== 'custom' && Q.reason !== 'buy' ? ' — الموقع حسبها لحاله' : '') : needDice && !num(Q.dice) ? 'اكتب مجموع النرد' : 'كمّل الاختيارات فوق'}</small></div>`;
+
+  const scroll = $('#sheetOverlay').classList.contains('show') ? $('#sheet').scrollTop : 0;
+  openSheet('⚡ عملية جديدة', `
+    <div class="step"><span class="n">1</span>وش السبب؟</div>
+    <div class="reasons">${REASONS.map(r => `<button class="${Q.reason === r.id ? 'on' : ''}" data-act="qReason" data-v="${r.id}"><i>${r.icon}</i>${r.name}</button>`).join('')}</div>
+    <div class="step"><span class="n">2</span>من؟ <small>(اللي يدفع)</small></div>
+    ${who('from', R.from, Q.from, Q.to)}
+    <div class="arrow">⬇</div>
+    <div class="step"><span class="n">3</span>إلى؟ <small>(اللي ياخذ)</small></div>
+    ${who('to', R.to, Q.to, Q.from)}
+    ${cardStep}
+    ${extra}
+    ${result}
+    <button class="btn" style="width:100%;margin-top:12px;font-size:18px" data-act="qDo" ${ready ? '' : 'disabled'}>✅ تأكيد</button>`);
+  $('#sheet').scrollTop = scroll;
+}
+function qDo() {
+  const amt = qAmount(), p = Q.card && prop(Q.card), f = Q.from, t = Q.to;
+  let ok = false;
+  switch (Q.reason) {
+    case 'rent': ok = transfer(f, t, amt, 'إيجار ' + p.name); break;
+    case 'go': ok = transfer('bank', t, amt, 'خط البداية'); break;
+    case 'custom': ok = transfer(f, t, amt, Q.note.trim()); break;
+    case 'mort': ok = act(`${nameOf(t)} رهن ${p.name} وأخذ ${fmt(amt)}`, '🏷️', () => { move('bank', t, amt); p.mortgaged = true; }); break;
+    case 'unmort': ok = act(`${nameOf(f)} فك رهن ${p.name} ودفع ${fmt(amt)}`, '🔓', () => { move(f, 'bank', amt); p.mortgaged = false; }); break;
+    case 'buy': ok = act(`${nameOf(f)} اشترى ${p.name} من البنك بـ ${fmt(amt)}`, '🃏', () => { move(f, 'bank', amt); p.owner = f; }); break;
+  }
+  if (ok) closeSheet();
+}
+// نحفظ الكتابة بدون ما نعيد رسم الشاشة (عشان الكيبورد ما يسكر)
+document.addEventListener('input', e => {
+  if (!Q || !$('#sheetOverlay').classList.contains('show')) return;
+  if (e.target.id === 'qAmt') { Q.amount = e.target.value; qRefreshResult(); }
+  if (e.target.id === 'qNote') Q.note = e.target.value;
+  if (e.target.id === 'qDice') { Q.dice = e.target.value; qRefreshResult(); }
+});
+function qRefreshResult() {
+  const box = $('.qresult'); if (!box) return;
+  const amt = qAmount(), R = qRules(Q.reason);
+  const ready = Q.from && Q.to && Q.from !== Q.to && (!R.needCard || Q.card) && amt !== null && amt > 0;
+  box.classList.toggle('ready', !!ready);
+  box.querySelector('.amt').textContent = amt === null ? '—' : fmt(amt);
+  $('[data-act=qDo]').disabled = !ready;
+}
+
 /* ---------------- الأحداث ---------------- */
 const val = id => $('#' + id)?.value ?? '';
 
 const actions = {
   close: closeSheet,
+  quick: d => sheetQuick(d.from ? { from: d.from } : {}),
+  qReason(d) { Q.reason = d.v; Q.card = null; Q.amount = ''; Q.dice = ''; qAuto(); renderQuick(); },
+  qPick(d) {
+    const side = d.side;
+    Q[side] = Q[side] === d.v ? null : d.v;
+    if (Q.reason === 'rent' && side === 'to') Q.card = null;
+    qAuto(); renderQuick();
+  },
+  qCard(d) { Q.card = Q.card === d.v ? null : d.v; Q.amount = ''; qAuto(); renderQuick(); },
+  qAdd(d) { Q.amount = String(num(Q.amount) + num(d.v)); renderQuick(); },
+  qNoteSet(d) {
+    Q.note = d.v;
+    const t = TAXES.find(x => x.name === d.v);
+    if (t) { Q.amount = String(t.amount); if (!Q.to) Q.to = 'bank'; }
+    renderQuick();
+  },
+  qDo,
   undo,
   addPlayer() {
     const name = val('newPlayer').trim();
