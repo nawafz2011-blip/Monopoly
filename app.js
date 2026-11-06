@@ -161,54 +161,62 @@ function miniProps(ps) {
 
 function viewPlayers() {
   let h = '';
-  if (!G.players.length) {
-    h += `<div class="empty"><div class="big">👥</div><p>أضف اللاعبين عشان تبدأ</p></div>`;
+  if (G.players.length) {
+    const total = G.players.reduce((s, p) => s + p.balance, 0);
+    const sold = G.props.filter(p => p.owner).length;
+    h += `<div class="summary">
+      <div><small>مع اللاعبين</small><b>${fmt(total)}</b></div>
+      <div><small>المباعة</small><b>${sold} / ${G.props.length}</b></div>
+      <div><small>العمليات</small><b>${G.log.length}</b></div></div>`;
+  } else {
+    h += `<div class="empty"><div class="big">🎲</div><h2>يلا نبدأ!</h2><p>أضف اللاعبين تحت، وكل واحد يبدأ بـ ${fmt(G.startMoney)}</p></div>`;
   }
+  h += '<div class="pgrid-players">';
   for (const p of G.players) {
     const st = playerStats(p.id);
-    h += `<div class="card pcard" style="--c:${p.color}">
+    h += `<div class="pcard" style="--c:${p.color}">
       <div class="ptop" data-act="player" data-id="${p.id}">
         <span class="avatar">${esc(p.name.trim()[0] || '?')}</span>
         <div class="nm"><b>${esc(p.name)}</b>
-          <small>🃏 ${st.props.length} بطاقة · 🏠 ${st.houses} · 🏨 ${st.hotels}</small></div>
-        <span class="bal ${p.balance < 0 ? 'neg' : ''}">${fmt(p.balance)}</span>
+          <small><span>🃏 ${st.props.length}</span><span>🏠 ${st.houses}</span><span>🏨 ${st.hotels}</span></small></div>
+        <span class="bal ${p.balance < 0 ? 'neg' : ''}"><span class="num">${p.balance.toLocaleString('en')}</span>${G.currency ? `<small>${esc(G.currency)}</small>` : ''}</span>
       </div>
       ${st.props.length ? `<div class="mini-props">${miniProps(st.props)}</div>` : ''}
       <div class="pbtns">
-        <button class="btn gold go" data-act="go" data-id="${p.id}">🏁 +${fmt(G.goAmount)} خط البداية</button>
-        <button class="btn" data-act="money" data-mode="in" data-id="${p.id}">➕ إضافة من البنك</button>
-        <button class="btn danger" data-act="money" data-mode="out" data-id="${p.id}">➖ دفع للبنك</button>
-        <button class="btn blue" data-act="money" data-mode="pay" data-id="${p.id}" style="grid-column:1/-1">🔁 تحويل للاعب ثاني</button>
+        <button class="act go" data-act="go" data-id="${p.id}"><i>🏁</i><b>+${G.goAmount.toLocaleString('en')}</b><small>البداية</small></button>
+        <button class="act in" data-act="money" data-mode="in" data-id="${p.id}"><i>＋</i><b>إضافة</b><small>من البنك</small></button>
+        <button class="act out" data-act="money" data-mode="out" data-id="${p.id}"><i>−</i><b>دفع</b><small>للبنك</small></button>
+        <button class="act pay" data-act="money" data-mode="pay" data-id="${p.id}"><i>⇄</i><b>تحويل</b><small>للاعب</small></button>
       </div>
     </div>`;
   }
-  h += `<div class="card"><h3>➕ إضافة لاعب</h3>
-    <div class="row"><input id="newPlayer" placeholder="اسم اللاعب" enterkeyhint="done">
-    <button class="btn" data-act="addPlayer" style="flex:none">إضافة</button></div>
-    <p class="muted small">كل لاعب يبدأ بـ ${fmt(G.startMoney)} (تقدر تغيرها من المزيد ← الإعدادات)</p></div>`;
+  h += `</div><div class="card add-player"><h3>➕ إضافة لاعب</h3>
+    <div class="row"><input id="newPlayer" placeholder="اسم اللاعب" enterkeyhint="done" autocomplete="off">
+    <button class="btn" data-act="addPlayer" style="flex:none;min-width:96px">إضافة</button></div></div>`;
   return h;
 }
 
 function viewProps() {
-  let h = `<div class="row" style="margin-bottom:12px"><button class="btn ghost" data-act="newProp">➕ بطاقة جديدة</button></div>`;
+  let h = `<button class="btn ghost wide" data-act="newProp" style="margin-bottom:14px">➕ بطاقة جديدة</button><div class="groups">`;
   for (const g of DEFAULT_GROUPS) {
     const ps = G.props.filter(p => p.group === g.id);
     if (!ps.length) continue;
-    h += `<section class="grp"><div class="grp-h ${isLight(g.id) ? 'light' : ''}" style="background:${g.color}">
-      <span>${g.name}</span><span class="small">${ps.filter(p => p.owner).length}/${ps.length}</span></div>
+    h += `<section class="grp" style="--c:${g.color}"><div class="grp-h">
+      <span class="dot"></span><span>${g.name}</span><span class="count">${ps.filter(p => p.owner).length}/${ps.length}</span></div>
       <div class="pgrid">${ps.map(propCard).join('')}</div></section>`;
   }
-  return h;
+  return h + '</div>';
 }
 function propCard(p) {
   const g = groupOf(p.group), o = p.owner && player(p.owner);
-  return `<button class="prop ${p.mortgaged ? 'mort' : ''}" style="--c:${g.color}" data-act="prop" data-id="${p.id}">
-    <span class="band"></span><span class="body">
-      <span class="nm">${esc(p.name)}</span>
+  const icon = g.type === 'station' ? '🚂' : g.type === 'utility' ? (p.en && /water/i.test(p.en) ? '🚰' : '💡') : '';
+  return `<button class="prop ${p.mortgaged ? 'mort' : ''} ${o ? 'owned' : ''}" style="--c:${g.color};${o ? `--oc:${o.color}` : ''}" data-act="prop" data-id="${p.id}">
+    <span class="deed-h ${isLight(p.group) ? 'light' : ''}">${icon ? `<i>${icon}</i>` : ''}<span>${esc(p.name)}</span></span>
+    <span class="body">
       <span class="pr">${fmt(p.price)}</span>
-      ${o ? `<span class="owner-chip" style="--oc:${o.color}">${esc(o.name)}</span>` : `<span class="owner-chip bank">البنك</span>`}
       <span class="houses">${levelText(p.level)}</span>
-      ${p.mortgaged ? '<span class="badge">مرهونة</span>' : ''}
+      ${o ? `<span class="owner-chip"><span class="od"></span>${esc(o.name)}</span>` : `<span class="owner-chip bank">🏦 البنك</span>`}
+      ${p.mortgaged ? '<span class="stamp">مرهونة</span>' : ''}
     </span></button>`;
 }
 
@@ -223,7 +231,7 @@ function viewLog() {
 
 function viewMore() {
   const games = Object.values(store.games).sort((a, b) => b.updated - a.updated);
-  return `
+  return `<div class="more-grid">
   <div class="card"><h3>📸 صور الطاولة</h3>
     <p class="muted small">صوّر اللوحة قبل لا توقفون عشان تعرفون كل واحد وين كان، والصورة تنحفظ مع اللعبة.</p>
     <button class="btn gold" data-act="photo" style="width:100%">📷 صوّر الطاولة الحين</button>
@@ -257,7 +265,7 @@ function viewMore() {
     <div class="row wrap">
       <button class="btn ghost" data-act="resetGame">🔄 إعادة اللعبة من الصفر</button>
       <button class="btn ghost" data-act="resetProps">🃏 رجّع البطاقات الأصلية</button>
-    </div></div>`;
+    </div></div></div>`;
 }
 
 /* ---------------- النوافذ (Sheet) ---------------- */
@@ -301,12 +309,7 @@ function sheetMoney(mode, pid) {
 
 function sheetPlayer(pid) {
   const p = player(pid), st = playerStats(pid);
-  const list = st.props.map(q => {
-    const g = groupOf(q.group);
-    return `<button class="prop ${q.mortgaged ? 'mort' : ''}" style="--c:${g.color};margin-bottom:6px;width:100%" data-act="prop" data-id="${q.id}">
-      <span class="band"></span><span class="body"><span class="nm">${esc(q.name)} <span class="houses">${levelText(q.level)}</span></span>
-      <span class="pr">${g.name}${q.mortgaged ? ' · <span class="badge">مرهونة</span>' : ''}</span></span></button>`;
-  }).join('');
+  const list = st.props.length ? `<div class="pgrid">${st.props.map(propCard).join('')}</div>` : '';
   const worth = p.balance + st.props.reduce((s, q) => s + (q.mortgaged ? q.mortgage : q.price) + (q.level ? q.level * q.house : 0), 0);
   openSheet(`<span class="avatar" style="--c:${p.color};display:inline-grid;width:32px;height:32px;font-size:16px;vertical-align:middle">${esc(p.name[0] || '?')}</span> ${esc(p.name)}`, `
     <div class="card">
