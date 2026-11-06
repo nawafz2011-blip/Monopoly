@@ -115,15 +115,14 @@ function showInstruction(moves, hint) {
   const payer = moves.find(m => m.from !== 'bank');
   const change = payer ? `<div class="change" data-due="${payer.amt}">
       <div class="ch-h">💵 ${payer.to === 'bank' ? `كم عطاك ${esc(nameOf(payer.from))}؟` : `كم عطى ${esc(nameOf(payer.from))} لـ ${esc(nameOf(payer.to))}؟`} <small>اضغط على الورق</small></div>
+      <input id="chGiven" class="big-amount" type="number" inputmode="numeric" placeholder="اكتب كم عطى" style="margin-bottom:8px">
       <div class="bills">${BILLS.map(v => `<button data-bill="${v}">${v}</button>`).join('')}<button data-bill="0" class="clr">مسح</button></div>
       <div class="ch-res"><span class="ch-given">عطى: <b>0</b></span><span class="ch-out muted">اضغط الورق اللي عطاك</span></div>
     </div>` : '';
   $('#instrBox').innerHTML = `${lines}${hint ? `<div class="ihint">${hint}</div>` : ''}${change}
     <button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ✅</button>`;
   let given = 0;
-  $$('#instrBox [data-bill]').forEach(b => b.onclick = () => {
-    const v = num(b.dataset.bill);
-    given = v ? given + v : 0;
+  const showChange = () => {
     const due = payer.amt, box = $('#instrBox .ch-res');
     box.querySelector('.ch-given b').textContent = fmt(given);
     const out = box.querySelector('.ch-out');
@@ -132,7 +131,14 @@ function showInstruction(moves, hint) {
     else if (given === due) { out.innerHTML = '✅ مضبوط، ما له باقي'; out.classList.add('ok'); }
     else if (given > due) { out.innerHTML = payer.to === 'bank' ? `↩️ رجّع له <b>${fmt(given - due)}</b>` : `↩️ خلّ ${esc(nameOf(payer.to))} يرجّع له <b>${fmt(given - due)}</b>`; out.classList.add('back'); }
     else { out.innerHTML = `⚠️ ناقص <b>${fmt(due - given)}</b>`; out.classList.add('short'); }
+  };
+  $$('#instrBox [data-bill]').forEach(b => b.onclick = () => {
+    const v = num(b.dataset.bill);
+    given = v ? given + v : 0;
+    $('#chGiven').value = given || '';
+    showChange();
   });
+  if (payer) $('#chGiven').oninput = e => { given = Math.max(0, num(e.target.value)); showChange(); };
   clearTimeout(toast._t); $('#toast').classList.remove('show');
   $('#instrOverlay').classList.add('show');
   $('#instrOk').onclick = hideInstruction;
