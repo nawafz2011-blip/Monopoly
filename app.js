@@ -84,6 +84,7 @@ function toast(msg) {
 
 /* كل عملية تمر من هنا: تنحفظ نسخة للتراجع + تنكتب في السجل */
 let pendingMoves = [], pendingHint = '';
+const BILLS = [500, 100, 50, 20, 10, 5, 1];
 function act(text, icon, fn) {
   const snap = JSON.stringify({ players: G.players, props: G.props, log: G.log });
   pendingMoves = []; pendingHint = '';
@@ -110,8 +111,28 @@ function showInstruction(moves, hint) {
     if (m.to === 'bank') return `<div class="iline take"><span class="iic">💵</span><div>خذ من ${P(m.from)}<br>${money}<small>وحطها في البنك</small></div></div>`;
     return `<div class="iline pay"><span class="iic">🔁</span><div>خلّ ${P(m.from)} يعطي ${P(m.to)}<br>${money}</div></div>`;
   }).join('');
-  $('#instrBox').innerHTML = `${lines}${hint ? `<div class="ihint">${hint}</div>` : ''}
+  // الباقي: لو فيه لاعب يدفع، البنكي يضغط الورق اللي عطاه والموقع يحسب كم يرجع له
+  const payer = moves.find(m => m.from !== 'bank');
+  const change = payer ? `<div class="change" data-due="${payer.amt}">
+      <div class="ch-h">💵 ${payer.to === 'bank' ? `كم عطاك ${esc(nameOf(payer.from))}؟` : `كم عطى ${esc(nameOf(payer.from))} لـ ${esc(nameOf(payer.to))}؟`} <small>اضغط على الورق</small></div>
+      <div class="bills">${BILLS.map(v => `<button data-bill="${v}">${v}</button>`).join('')}<button data-bill="0" class="clr">مسح</button></div>
+      <div class="ch-res"><span class="ch-given">عطى: <b>0</b></span><span class="ch-out muted">اضغط الورق اللي عطاك</span></div>
+    </div>` : '';
+  $('#instrBox').innerHTML = `${lines}${hint ? `<div class="ihint">${hint}</div>` : ''}${change}
     <button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ✅</button>`;
+  let given = 0;
+  $$('#instrBox [data-bill]').forEach(b => b.onclick = () => {
+    const v = num(b.dataset.bill);
+    given = v ? given + v : 0;
+    const due = payer.amt, box = $('#instrBox .ch-res');
+    box.querySelector('.ch-given b').textContent = fmt(given);
+    const out = box.querySelector('.ch-out');
+    out.className = 'ch-out';
+    if (!given) { out.textContent = 'اضغط الورق اللي عطاك'; out.classList.add('muted'); }
+    else if (given === due) { out.innerHTML = '✅ مضبوط، ما له باقي'; out.classList.add('ok'); }
+    else if (given > due) { out.innerHTML = payer.to === 'bank' ? `↩️ رجّع له <b>${fmt(given - due)}</b>` : `↩️ خلّ ${esc(nameOf(payer.to))} يرجّع له <b>${fmt(given - due)}</b>`; out.classList.add('back'); }
+    else { out.innerHTML = `⚠️ ناقص <b>${fmt(due - given)}</b>`; out.classList.add('short'); }
+  });
   clearTimeout(toast._t); $('#toast').classList.remove('show');
   $('#instrOverlay').classList.add('show');
   $('#instrOk').onclick = hideInstruction;

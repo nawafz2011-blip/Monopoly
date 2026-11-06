@@ -419,3 +419,21 @@ html[data-device="laptop"] .ptop:hover .nm b { text-decoration: underline; text-
 .set-h { display: flex; align-items: baseline; gap: 8px; margin: 12px 4px 8px; font-weight: 800; font-size: 14px; }
 .set-h:first-of-type { margin-top: 2px; }
 .set-h small { color: var(--muted); font-weight: 600; font-size: 12px; }
+
+/* الباقي */
+.instr { max-height: 94vh; overflow-y: auto; }
+.change { margin-top: 12px; padding: 12px; border-radius: 18px; border: 2px dashed var(--line); }
+.ch-h { font-weight: 800; font-size: 16px; margin-bottom: 8px; }
+.ch-h small { color: var(--muted); font-weight: 600; font-size: 12px; }
+.bills { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; direction: ltr; }
+.bills button {
+  border: 0; border-radius: 12px; min-height: 46px; font-weight: 800; font-size: 18px;
+  background: linear-gradient(160deg, #e9f6ec, #cfe9d6); color: #0e4d2f; box-shadow: inset 0 0 0 1.5px #9fd0ad;
+}
+.bills button:active { transform: scale(.95); }
+.bills .clr { background: var(--soft); color: var(--muted); box-shadow: inset 0 0 0 1.5px var(--line); font-size: 15px; }
+.ch-res { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 10px; font-weight: 700; }
+.ch-out { font-size: 20px; font-weight: 800; text-align: center; }
+.ch-out.back { color: var(--blue); font-size: 24px; }
+.ch-out.ok { color: var(--brand2); }
+.ch-out.short { color: var(--danger); }
