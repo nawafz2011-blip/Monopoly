@@ -234,7 +234,12 @@ function viewPlayers() {
       <div><small>المباعة</small><b>${sold} / ${G.props.length}</b></div>
       <div><small>العمليات</small><b>${G.log.length}</b></div></div>`;
   } else {
-    h += `<div class="empty"><div class="big">🎲</div><h2>يلا نبدأ!</h2><p>أضف اللاعبين تحت، وكل واحد يبدأ بـ ${fmt(G.startMoney)}</p></div>`;
+    const others = Object.values(store.games).filter(g => g.id !== G.id && g.players.length).length;
+    h += `<div class="empty"><div class="big">🎲</div><h2>يلا نبدأ!</h2><p>أضف اللاعبين تحت، وكل واحد يبدأ بـ ${fmt(G.startMoney)}</p>
+      <div class="start-btns">
+        <button class="btn blue" data-act="import">📂 كمّل لعبة محفوظة (من ملف)</button>
+        ${others ? `<button class="btn ghost" data-act="gotoGames">🎲 الألعاب اللي في هذا الجهاز (${others})</button>` : ''}
+      </div></div>`;
   }
   if (G.players.length) h += `<button class="quick-btn" data-act="quick">⚡ عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
@@ -333,10 +338,11 @@ function viewMore() {
     <label class="f">العملة (اختياري، مثل: ج أو $)</label><input id="setCur" value="${esc(G.currency)}" maxlength="6">
     <button class="btn" data-act="saveSettings" style="width:100%;margin-top:12px">💾 حفظ الإعدادات</button></div>
 
-  <div class="card"><h3>💾 نسخة احتياطية</h3>
-    <p class="muted small">كل شي محفوظ في هذا الجهاز تلقائيا. لو تبي تنقله لجوال ثاني أو تحتفظ بنسخة، نزّل ملف.</p>
-    <div class="row"><button class="btn ghost" data-act="export">⬇️ تنزيل نسخة</button>
-    <button class="btn ghost" data-act="import">⬆️ استرجاع نسخة</button></div></div>
+  <div class="card backup"><h3>💾 النسخة الاحتياطية</h3>
+    <p class="muted small" style="margin-top:0">كل شي ينحفظ في هذا الجهاز لحاله. بس لو تبي تنقل اللعبة لجهاز ثاني، أو تحتفظ فيها بأمان، احفظ نسخة في ملف.</p>
+    <button class="btn" data-act="export" style="width:100%">⬇️ احفظ نسخة في ملف</button>
+    <button class="btn blue" data-act="import" style="width:100%;margin-top:8px">📂 افتح نسخة محفوظة</button>
+    <p class="muted small">لما تفتح النسخة، يرجع كل شي مثل ما كان: اللاعبين والفلوس والبطاقات وصور الطاولة.</p></div>
 
   <div class="card"><h3>🧹 أخرى</h3>
     <div class="row wrap">
@@ -573,22 +579,54 @@ async function exportAll() {
   for (const g of Object.values(store.games)) for (const ph of g.photos) {
     const b = await idb.get(ph.id); if (b) photos[ph.id] = await blobToData(b);
   }
-  const data = JSON.stringify({ app: 'bankhelper', v: 1, store, photos });
+  const data = JSON.stringify({ app: 'bankhelper', v: 1, saved: Date.now(), store, photos });
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  const name = `bank-backup-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}.json`;
+  const blob = new Blob([data], { type: 'application/json' });
+  // في الجوال والآيباد: نافذة المشاركة (احفظ في الملفات، واتساب، AirDrop...)
+  try {
+    const file = new File([blob], name, { type: 'application/json' });
+    if (device() !== 'laptop' && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'نسخة ' + G.name });
+      return toast('⬇️ انحفظت النسخة');
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
-  a.download = 'bank-backup-' + new Date().toISOString().slice(0, 10) + '.json';
-  a.click();
-  toast('⬇️ تم تنزيل النسخة');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  toast('⬇️ انحفظت النسخة في التنزيلات');
 }
 async function importAll(file) {
   try {
     const d = JSON.parse(await file.text());
     if (d.app !== 'bankhelper') throw 0;
     for (const [id, url] of Object.entries(d.photos || {})) await idb.put(id, await (await fetch(url)).blob());
+    // نشيل اللعبة الفاضية اللي ما فيها لاعبين عشان ما تزحم القائمة
+    if (G && !G.players.length && !G.log.length) delete store.games[G.id];
     Object.assign(store.games, d.store.games);
-    G = null; store.currentId = d.store.currentId || store.currentId;
-    save(); render(); toast('⬆️ تم الاسترجاع');
-  } catch (e) { toast('الملف غير صحيح'); }
+    const cur = d.store.games[d.store.currentId] ? d.store.currentId : Object.keys(d.store.games)[0];
+    G = store.games[cur]; store.currentId = cur; tab = 'players';
+    save(); render(); window.scrollTo(0, 0);
+    showRestored(d, Object.keys(d.store.games).length);
+  } catch (e) { toast('⚠️ هذا الملف مو نسخة من الموقع'); }
+}
+async function showRestored(d, count) {
+  const ph = G.photos[0];
+  const rows = G.players.slice().sort((x, y) => y.balance - x.balance).map(p => {
+    const st = playerStats(p.id);
+    return `<div class="rs-row" style="--c:${p.color}"><span class="avatar" style="width:36px;height:36px;font-size:17px;border-radius:12px">${esc(p.name.trim()[0] || '?')}</span>
+      <b>${esc(p.name)}</b><span class="muted small">🃏 ${st.props.length} · 🏠 ${st.houses} · 🏨 ${st.hotels}</span><span class="bal" style="font-size:19px;margin-inline-start:auto">${fmt(p.balance)}</span></div>`;
+  }).join('');
+  const last = G.log.find(l => l.icon !== '📸');
+  openSheet('📂 رجعت اللعبة!', `
+    <div class="card"><h3 style="margin-bottom:4px">${esc(G.name)}</h3>
+      <p class="muted small" style="margin:0 0 10px">آخر مرة لعبتوا: ${dateStr(G.updated)}${count > 1 ? ` · وفي الملف ${count} ألعاب (تلقاها في المزيد)` : ''}</p>
+      ${rows || '<p class="muted">ما فيها لاعبين</p>'}
+      ${last ? `<p class="small" style="margin:12px 0 0">📜 آخر عملية: <b>${esc(last.text)}</b></p>` : ''}</div>
+    ${ph ? `<div class="card"><h3>📸 هذي آخر صورة للطاولة</h3><p class="muted small" style="margin-top:0">رجّعوا القطع مكانها مثل الصورة</p>
+      <img class="full-photo" src="${await photoURL(ph.id)}" alt=""></div>` : `<p class="muted small">ما فيه صورة للطاولة في هذي النسخة. المرة الجاية صوّروا الطاولة من المزيد قبل لا توقفون.</p>`}
+    <button class="btn" data-act="close" style="width:100%;font-size:18px">يلا نكمّل 🎲</button>`);
 }
 
 /* ---------------- الآلة الحاسبة ---------------- */
@@ -1008,6 +1046,7 @@ const actions = {
   device(d) { setDevice(d.v); render(); toast('صار الشكل على: ' + (d.v === 'auto' ? 'تلقائي (' + DEVICES[window.AUTO_DEVICE] + ')' : DEVICES[d.v])); },
   export: exportAll,
   import: () => $('#importInput').click(),
+  gotoGames() { tab = 'more'; render(); setTimeout(() => $('.game-item')?.scrollIntoView({ block: 'center' }), 50); },
   resetGame() {
     if (!confirm('ترجع كل اللاعبين لفلوس البداية وكل البطاقات للبنك؟ (تقدر تتراجع)')) return;
     act('إعادة اللعبة من الصفر', '🔄', () => {

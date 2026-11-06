@@ -437,3 +437,9 @@ html[data-device="laptop"] .ptop:hover .nm b { text-decoration: underline; text-
 .ch-out.back { color: var(--blue); font-size: 24px; }
 .ch-out.ok { color: var(--brand2); }
 .ch-out.short { color: var(--danger); }
+
+/* النسخة الاحتياطية */
+.start-btns { display: grid; gap: 8px; max-width: 420px; margin: 16px auto 0; }
+.rs-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.rs-row:last-of-type { border-bottom: 0; }
+.rs-row .avatar { --c: inherit; }
