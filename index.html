@@ -11,6 +11,20 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // يعرف الجهاز قبل لا تنرسم الصفحة: phone / tablet / laptop
+    (function () {
+      var ua = navigator.userAgent, touch = navigator.maxTouchPoints || 0, d = 'auto';
+      try { d = localStorage.getItem('bankhelper:device') || 'auto'; } catch (e) {}
+      var auto;
+      if (/iPad/.test(ua) || (/Macintosh/.test(ua) && touch > 1) || (/Android/.test(ua) && !/Mobile/.test(ua)) || /Tablet|Silk|Kindle/.test(ua)) auto = 'tablet';
+      else if (/iPhone|iPod|Android.*Mobile|Windows Phone|Mobile/.test(ua)) auto = 'phone';
+      else if (touch > 0 && Math.min(screen.width, screen.height) < 600) auto = 'phone';
+      else auto = 'laptop';
+      window.AUTO_DEVICE = auto;
+      document.documentElement.dataset.device = d === 'auto' ? auto : d;
+    })();
+  </script>
 </head>
 <body>
   <header class="top">
@@ -31,10 +45,11 @@
 
 
   <nav class="tabs">
-    <button data-tab="players" class="active"><span>👥</span>اللاعبين</button>
-    <button data-tab="props"><span>🃏</span>البطاقات</button>
-    <button data-tab="log"><span>📜</span>السجل</button>
-    <button data-tab="more"><span>⚙️</span>المزيد</button>
+    <button data-tab="players" class="active"><span>👥</span>اللاعبين<kbd hidden>1</kbd></button>
+    <button data-tab="props"><span>🃏</span>البطاقات<kbd hidden>2</kbd></button>
+    <button data-tab="log"><span>📜</span>السجل<kbd hidden>3</kbd></button>
+    <button data-tab="more"><span>⚙️</span>المزيد<kbd hidden>4</kbd></button>
+    <div class="kbd-hint">⌨️ اختصارات:<br>1 – 4 التبويبات<br>Ctrl+Z تراجع<br>C الآلة الحاسبة<br>Esc إغلاق</div>
   </nav>
 
   <div class="overlay" id="sheetOverlay">

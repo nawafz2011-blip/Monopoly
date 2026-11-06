@@ -10,6 +10,15 @@ const PCOLORS = ['#e53935', '#1e88e5', '#43a047', '#fb8c00', '#8e24aa', '#00acc1
 const LIGHT_GROUPS = ['lightblue', 'yellow'];
 
 const $ = (s, r = document) => r.querySelector(s);
+const DEVICES = { phone: '📱 جوال', tablet: '📲 آيباد', laptop: '💻 لابتوب' };
+const device = () => document.documentElement.dataset.device;
+function curDeviceSetting() { try { return localStorage.getItem('bankhelper:device') || 'auto'; } catch (e) { return 'auto'; } }
+function setDevice(d) {
+  try { localStorage.setItem('bankhelper:device', d); } catch (e) { }
+  document.documentElement.dataset.device = d === 'auto' ? window.AUTO_DEVICE : d;
+  syncKbd();
+}
+function syncKbd() { document.querySelectorAll('.tabs kbd').forEach(k => k.hidden = device() !== 'laptop'); }
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -137,7 +146,7 @@ function render() {
     else { G = makeGame(); save(); }
   }
   $('#gameName').textContent = G.name;
-  $('#gameSub').textContent = `${G.players.length} لاعب · آخر حفظ ${timeStr(G.updated)}`;
+  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${G.players.length} لاعب · آخر حفظ ${timeStr(G.updated)}`;
   $('#undoBtn').disabled = !getUndo().length;
   $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   const v = $('#view');
@@ -246,6 +255,11 @@ function viewMore() {
       <button class="btn ghost sm" data-act="delGame" data-id="${g.id}">🗑️</button></div>`).join('')}
     <button class="btn" data-act="newGame" style="width:100%;margin-top:10px">➕ لعبة جديدة</button>
     <p class="muted small">اللعبة الجديدة تاخذ نفس البطاقات والأسعار اللي عدلتها هنا، بس تبدأ من الصفر.</p></div>
+
+  <div class="card"><h3>🖥️ الجهاز</h3>
+    <p class="muted small" style="margin-top:0">الموقع عرف إنك فاتح من: <b>${DEVICES[window.AUTO_DEVICE]}</b>. إذا غلط، اختر جهازك:</p>
+    <div class="chips">${[['auto', '✨ تلقائي'], ...Object.entries(DEVICES)].map(([k, v]) => `<button class="chip ${curDeviceSetting() === k ? 'on' : ''}" data-act="device" data-v="${k}">${v}</button>`).join('')}</div>
+  </div>
 
   <div class="card"><h3>⚙️ الإعدادات</h3>
     <label class="f">اسم اللعبة</label><input id="setName" value="${esc(G.name)}">
@@ -720,6 +734,7 @@ const actions = {
     G.currency = val('setCur').trim();
     save(); render(); toast('💾 انحفظت الإعدادات');
   },
+  device(d) { setDevice(d.v); render(); toast('صار الشكل على: ' + (d.v === 'auto' ? 'تلقائي (' + DEVICES[window.AUTO_DEVICE] + ')' : DEVICES[d.v])); },
   export: exportAll,
   import: () => $('#importInput').click(),
   resetGame() {
@@ -745,8 +760,25 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('focusin', e => { if (e.target.matches('[data-amount]')) lastAmountInput = e.target; });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.id === 'newPlayer') actions.addPlayer();
+  if (e.key === 'Enter' && e.target.id === 'newPlayer') return actions.addPlayer();
+  if (e.key === 'Enter' && e.target.id === 'mAmt') return $('[data-act=doMoney]')?.click();
+  const typing = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
+  const calcOpen = $('#calcOverlay').classList.contains('show');
+  if (e.key === 'Escape') { if (calcOpen) $('#calcOverlay').classList.remove('show'); else closeSheet(); return; }
+  if (calcOpen && !typing) {
+    const map = { '*': '×', '/': '÷', '-': '−', '+': '+', 'Enter': '=', '=': '=', 'Backspace': '⌫', 'Delete': 'C' };
+    const k = map[e.key] || (/^[\d()]$/.test(e.key) ? e.key : null);
+    if (k) { e.preventDefault(); $(`#calcKeys [data-k="${k}"]`)?.click(); }
+    return;
+  }
+  if (typing) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); return undo(); }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tabs = { '1': 'players', '2': 'props', '3': 'log', '4': 'more' };
+  if (tabs[e.key] && !$('#sheetOverlay').classList.contains('show')) { tab = tabs[e.key]; render(); window.scrollTo(0, 0); }
+  if (e.key.toLowerCase() === 'c' || e.key === 'ؤ') $('#calcBtn').click();
 });
+syncKbd();
 $$('.tabs button').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); window.scrollTo(0, 0); });
 $('#undoBtn').onclick = undo;
 $('#sheetOverlay').addEventListener('click', e => { if (e.target.id === 'sheetOverlay') closeSheet(); });

@@ -72,7 +72,6 @@ button { cursor: pointer; }
 #calcBtn { font-size: 18px; padding: 6px 12px; }
 
 main { max-width: 760px; margin: 0 auto; padding: 16px; }
-@media (min-width: 1000px) { main { max-width: 1180px; } }
 
 /* ===== Bottom tabs ===== */
 .tabs {
@@ -90,7 +89,6 @@ main { max-width: 760px; margin: 0 auto; padding: 16px; }
 .tabs button span { font-size: 21px; filter: grayscale(.6); opacity: .8; transition: .15s; }
 .tabs button.active { color: var(--brand2); background: color-mix(in srgb, var(--brand2) 12%, transparent); }
 .tabs button.active span { filter: none; opacity: 1; transform: translateY(-1px); }
-@media (min-width: 1000px) { .tabs { max-width: 560px; margin: 0 auto 12px; border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); } }
 
 .fab {
   position: fixed; left: 16px; bottom: calc(90px + env(safe-area-inset-bottom)); z-index: 21;
@@ -149,8 +147,6 @@ label.f { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5
 
 /* ===== Players ===== */
 .pgrid-players { display: grid; gap: 14px; margin-bottom: 14px; }
-@media (min-width: 700px) { .pgrid-players { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1000px) { .pgrid-players { grid-template-columns: repeat(3, 1fr); } }
 .pcard {
   background: var(--card); border-radius: 22px; box-shadow: var(--shadow); border: 1px solid var(--line);
   padding: 14px; position: relative; overflow: hidden;
@@ -197,7 +193,6 @@ label.f { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5
 
 /* ===== Properties ===== */
 .groups { display: grid; gap: 16px; }
-@media (min-width: 1000px) { .groups { grid-template-columns: repeat(2, 1fr); align-items: start; } }
 .grp { background: var(--card); border-radius: 20px; box-shadow: var(--shadow); border: 1px solid var(--line); padding: 12px; }
 .grp-h { display: flex; align-items: center; gap: 8px; font-weight: 800; margin: 2px 4px 10px; }
 .grp-h .dot { width: 14px; height: 14px; border-radius: 5px; background: var(--c); }
@@ -306,9 +301,7 @@ label.f { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5
 .game-item:last-child { border-bottom: 0; }
 .game-item .info { flex: 1; min-width: 0; }
 .game-item.cur b::after { content: ' ✅'; }
-@media (min-width: 1000px) {
-  .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 14px; align-items: start; }
-}
+
 
 .toast {
   position: fixed; bottom: calc(160px + env(safe-area-inset-bottom)); left: 50%; transform: translate(-50%, 10px);
@@ -317,3 +310,53 @@ label.f { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 5
   transition: opacity .2s, transform .2s; box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ============================================================
+   تخطيط حسب الجهاز — html[data-device="phone" | "tablet" | "laptop"]
+   ============================================================ */
+.kbd-hint { display: none; }
+
+/* 📲 الآيباد */
+html[data-device="tablet"] main { max-width: 1100px; padding: 20px 24px; }
+html[data-device="tablet"] .pgrid-players { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+html[data-device="tablet"] .act { min-height: 84px; }
+html[data-device="tablet"] .act i { font-size: 24px; }
+html[data-device="tablet"] .act b { font-size: 16px; }
+html[data-device="tablet"] .pgrid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+html[data-device="tablet"] .tabs { max-width: 620px; margin: 0 auto 12px; border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); }
+html[data-device="tablet"] .tabs button { padding: 8px 0; font-size: 14px; }
+html[data-device="tablet"] .overlay { align-items: center; }
+html[data-device="tablet"] .sheet { border-radius: 26px; max-height: 88vh; max-width: 600px; }
+html[data-device="tablet"] .sheet::before { display: none; }
+html[data-device="tablet"] .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 16px; align-items: start; }
+@media (orientation: landscape) {
+  html[data-device="tablet"] .pgrid-players { grid-template-columns: repeat(3, 1fr); }
+  html[data-device="tablet"] .groups { grid-template-columns: repeat(2, 1fr); align-items: start; }
+}
+
+/* 💻 اللابتوب: القائمة على الجنب */
+html[data-device="laptop"] body { padding-bottom: 24px; }
+html[data-device="laptop"] .top { padding-inline: 24px; }
+html[data-device="laptop"] main { max-width: 1240px; padding: 22px 24px; margin-inline-start: 236px; margin-inline-end: auto; }
+@media (min-width: 1720px) { html[data-device="laptop"] main { margin-inline-start: calc((100vw - 1240px) / 2); } }
+html[data-device="laptop"] .tabs {
+  top: 92px; bottom: auto; inset-inline-start: 20px; inset-inline-end: auto; width: 196px;
+  grid-template-columns: 1fr; gap: 4px; padding: 10px;
+  border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow);
+}
+html[data-device="laptop"] .tabs button { flex-direction: row; justify-content: flex-start; gap: 10px; padding: 11px 14px; font-size: 15px; }
+html[data-device="laptop"] .tabs button span { font-size: 20px; }
+html[data-device="laptop"] .tabs button kbd {
+  margin-inline-start: auto; font: inherit; font-size: 11px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; background: var(--soft);
+}
+html[data-device="laptop"] .kbd-hint { display: block; margin-top: 6px; padding: 10px 6px 2px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); line-height: 1.8; }
+html[data-device="laptop"] .pgrid-players { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+html[data-device="laptop"] .groups { grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); align-items: start; }
+html[data-device="laptop"] .more-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 16px; align-items: start; }
+html[data-device="laptop"] .overlay { align-items: center; }
+html[data-device="laptop"] .sheet { border-radius: 24px; max-height: 88vh; max-width: 560px; }
+html[data-device="laptop"] .sheet::before { display: none; }
+html[data-device="laptop"] .act:hover, html[data-device="laptop"] .btn:hover { filter: brightness(1.07); }
+html[data-device="laptop"] .prop:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+html[data-device="laptop"] .ptop:hover .nm b { text-decoration: underline; text-underline-offset: 4px; }
