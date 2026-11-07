@@ -639,3 +639,6 @@ textarea:focus { border-color: var(--brand2); box-shadow: 0 0 0 4px color-mix(in
 .gn-h .ic { width: 16px; height: 16px; }
 .gn-t { font-size: 14px; line-height: 1.6; white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .note-text { white-space: pre-line; line-height: 1.7; margin: 0 0 8px; }
+
+.gnote.empty-note { border-style: dashed; background: var(--card); }
+.gn-h small { font-weight: 500; color: var(--muted); font-size: 12px; margin-inline-start: 4px; }

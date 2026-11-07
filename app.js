@@ -3,7 +3,7 @@
    مساعد البنك — كل البيانات تنحفظ في الجهاز (localStorage + IndexedDB للصور)
    ============================================================ */
 
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 const KEY = 'bankhelper:v1';
 const UNDO_KEY = id => KEY + ':undo:' + id;
 const UNDO_LIMIT = 40;
@@ -255,7 +255,9 @@ function viewPlayers() {
         ${others ? `<button class="btn ghost" data-act="gotoGames">${I('dice')} الألعاب اللي في هذا الجهاز (${others})</button>` : ''}
       </div></div>`;
   }
-  if (G.notes && G.notes.trim()) h += `<button class="gnote" data-act="gotoNotes"><span class="gn-h">${I('pencil')} ملاحظات اللعبة</span><span class="gn-t">${esc(G.notes)}</span></button>`;
+  if (G.players.length) h += (G.notes && G.notes.trim())
+    ? `<button class="gnote" data-act="gotoNotes"><span class="gn-h">${I('pencil')} ملاحظات اللعبة <small>اضغط عشان تعدل</small></span><span class="gn-t">${esc(G.notes)}</span></button>`
+    : `<button class="gnote empty-note" data-act="gotoNotes"><span class="gn-h">${I('pencil')} ملاحظات اللعبة</span><span class="gn-t muted">اضغط هنا واكتب أي ملاحظة، مثل القوانين اللي متفقين عليها</span></button>`;
   if (G.players.length) h += `<button class="quick-btn" data-act="quick">${I('zap')} عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
   for (const p of active()) {
@@ -270,7 +272,7 @@ function viewPlayers() {
       ${st.props.length ? `<div class="mini-props">${miniProps(st.props)}</div>` : ''}
       ${p.balance < 0 ? `<div class="debt-bar">${I('alert')}<div><b>عليه ${fmt(-p.balance)}</b><small>لازم يسدد أو يعلن إفلاسه</small></div>
         <button class="btn sm danger" data-act="debt" data-id="${p.id}">سدّد الدين</button></div>` : ''}
-      ${p.note ? `<button class="pnote" data-act="player" data-id="${p.id}">${I('pencil')}<span>${esc(p.note)}</span></button>` : ''}
+      ${p.note ? `<button class="pnote" data-act="playerNote" data-id="${p.id}">${I('pencil')}<span>${esc(p.note)}</span></button>` : ''}
       ${jailBar(p)}
       <div class="pbtns">
         <button class="act go" data-act="go" data-id="${p.id}"><i>${I('flag')}</i><b>+${G.goAmount.toLocaleString('en')}</b><small>البداية</small></button>
@@ -934,11 +936,13 @@ function jailBar(p) {
         ${last ? '' : `<button class="chip" data-act="jailTurn" data-id="${p.id}">${I('dice')} ما جاب دبل</button>`}
         <button class="chip" data-act="jailOut" data-id="${p.id}">${I('unlock')} جاب دبل</button>
         <button class="chip gold" data-act="jailPay" data-id="${p.id}">${I('cash')} دفع ${fmt(JAIL_FEE)} وطلع</button>
+        ${p.note ? '' : `<button class="chip" data-act="playerNote" data-id="${p.id}">${I('pencil')} ملاحظة</button>`}
         ${p.freeCards ? `<button class="chip blue" data-act="jailCard" data-id="${p.id}">${I('card')} استخدم بطاقة الخروج (${p.freeCards})</button>` : ''}
       </div></div>`;
   }
   return `<div class="jail-mini">
     <button class="chip" data-act="jailIn" data-id="${p.id}">${I('lock')} دخل السجن</button>
+    ${p.note ? '' : `<button class="chip" data-act="playerNote" data-id="${p.id}">${I('pencil')} ملاحظة</button>`}
     ${p.freeCards ? `<span class="chip on">${I('card')} معه بطاقة خروج ×${p.freeCards}</span>` : ''}</div>`;
 }
 
@@ -1255,6 +1259,10 @@ const actions = {
       if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
     } catch (e) { }
     location.replace(location.pathname + '?u=' + Date.now());
+  },
+  playerNote(d) {
+    sheetPlayer(d.id);
+    setTimeout(() => { const t = $('#pNote'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 80);
   },
   gotoNotes() { tab = 'more'; render(); setTimeout(() => { $('#notesCard')?.scrollIntoView({ block: 'center' }); $('#gNote')?.focus(); }, 50); },
   gotoGames() { tab = 'more'; render(); setTimeout(() => $('.game-item')?.scrollIntoView({ block: 'center' }), 50); },
