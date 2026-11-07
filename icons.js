@@ -47,6 +47,7 @@ const ICONS = {
   arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
   receipt: '<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/>',
 };
 function I(name, cls = '') {
@@ -58,6 +59,6 @@ function I(name, cls = '') {
 const LEGACY_ICON = {
   '🃏': 'card', '🏠': 'house', '🏦': 'bank', '🏨': 'hotel', '💸': 'cash', '💵': 'cash', '💰': 'coins', '🏷️': 'tag',
   '🔓': 'unlock', '🔁': 'swap', '🎁': 'gift', '🔨': 'house', '🗑️': 'trash', '✏️': 'pencil', '➕': 'plus',
-  '👤': 'user', '📸': 'camera', '🔄': 'refresh', '🏁': 'flag',
+  '👤': 'user', '📸': 'camera', '⚠️': 'alert', '🔄': 'refresh', '🏁': 'flag',
 };
 const logIcon = k => I(ICONS[k] ? k : (LEGACY_ICON[k] || 'receipt'));

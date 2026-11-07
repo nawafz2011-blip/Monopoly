@@ -68,6 +68,9 @@ const DEFAULT_PROPS = [
   ['utility', 'شركة المياه', 'Water Works', 150, [4, 10]],
 ];
 
+// مبلغ الخروج من السجن
+const JAIL_FEE = 50;
+
 // مبالغ سريعة تطلع في "دفع للبنك"
 const TAXES = [
   { name: 'ضريبة الدخل', amount: 200 },

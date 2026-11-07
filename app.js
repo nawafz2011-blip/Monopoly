@@ -68,6 +68,7 @@ function openGame(id) {
 /* ---------------- مساعدات ---------------- */
 const groupOf = id => DEFAULT_GROUPS.find(g => g.id === id) || DEFAULT_GROUPS[0];
 const player = id => G.players.find(p => p.id === id);
+const active = () => G.players.filter(p => !p.out);
 const prop = id => G.props.find(p => p.id === id);
 const nameOf = id => id === 'bank' ? 'البنك' : (player(id)?.name || '؟');
 const fmt = n => (n < 0 ? '-' : '') + Math.abs(n).toLocaleString('en') + (G?.currency ? ' ' + G.currency : '');
@@ -84,7 +85,7 @@ function toast(msg) {
 }
 
 /* كل عملية تمر من هنا: تنحفظ نسخة للتراجع + تنكتب في السجل */
-let pendingMoves = [], pendingHint = '';
+let pendingMoves = [], pendingHint = '', pendingDebt = null;
 const BILLS = [500, 100, 50, 20, 10, 5, 1];
 function act(text, icon, fn) {
   const snap = JSON.stringify({ players: G.players, props: G.props, log: G.log });
@@ -94,8 +95,11 @@ function act(text, icon, fn) {
   G.log.unshift({ id: uid(), t: Date.now(), text, icon });
   const u = getUndo(); u.push(snap); setUndo(u);
   save(); render();
+  // لو أحد صار رصيده بالسالب بسبب هذي العملية، نفتح له شاشة الدين بعد الرسالة
+  const debtor = active().find(p => p.balance < 0 && pendingMoves.some(m => m.from === p.id));
+  pendingDebt = debtor ? debtor.id : null;
   if (pendingMoves.length || pendingHint) showInstruction(pendingMoves, pendingHint);
-  else toast(text);
+  else { toast(text); if (pendingDebt) { const d = pendingDebt; pendingDebt = null; setTimeout(() => sheetDebt(d), 300); } }
   pendingMoves = []; pendingHint = '';
   return true;
 }
@@ -145,7 +149,15 @@ function showInstruction(moves, hint) {
   $('#instrOk').onclick = hideInstruction;
   setTimeout(() => $('#instrOk')?.focus(), 30);
 }
-function hideInstruction() { $('#instrOverlay').classList.remove('show'); }
+function hideInstructionLater(pid) {
+  const back = () => { const p = player(pid); if (p && !p.out && p.balance < 0) sheetDebt(pid); else { closeSheet(); if (p) toast(`${p.name} سدّد الدين`); } };
+  if ($('#instrOverlay').classList.contains('show')) $('#instrOk').onclick = () => { $('#instrOverlay').classList.remove('show'); back(); };
+  else back();
+}
+function hideInstruction() {
+  $('#instrOverlay').classList.remove('show');
+  if (pendingDebt) { const d = pendingDebt; pendingDebt = null; const p = player(d); if (p && !p.out && p.balance < 0) sheetDebt(d); }
+}
 function undo() {
   const u = getUndo();
   if (!u.length) return toast('ما فيه شي تتراجع عنه');
@@ -158,7 +170,7 @@ function undo() {
 
 function move(from, to, amt) {
   if (!amt || from === to) return;
-  if (from !== 'bank') player(from).balance -= amt;
+  if (from !== 'bank') { const f = player(from); f.balance -= amt; if (f.balance < 0) f.debtTo = to; }
   if (to !== 'bank') player(to).balance += amt;
   pendingMoves.push({ from, to, amt });
 }
@@ -203,7 +215,7 @@ function render() {
     else { G = makeGame(); save(); }
   }
   $('#gameName').textContent = G.name;
-  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${G.players.length} لاعب · حُفظ ${timeStr(G.updated)}`;
+  $('#gameSub').textContent = `${DEVICES[device()] || ''} · ${active().length} لاعب · حُفظ ${timeStr(G.updated)}`;
   $('#undoBtn').disabled = !getUndo().length;
   $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   const v = $('#view');
@@ -228,7 +240,7 @@ function miniProps(ps) {
 function viewPlayers() {
   let h = '';
   if (G.players.length) {
-    const total = G.players.reduce((s, p) => s + p.balance, 0);
+    const total = active().reduce((s, p) => s + p.balance, 0);
     const sold = G.props.filter(p => p.owner).length;
     h += `<div class="summary">
       <div><small>مع اللاعبين</small><b>${fmt(total)}</b></div>
@@ -244,7 +256,7 @@ function viewPlayers() {
   }
   if (G.players.length) h += `<button class="quick-btn" data-act="quick">${I('zap')} عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
-  for (const p of G.players) {
+  for (const p of active()) {
     const st = playerStats(p.id);
     h += `<div class="pcard" style="--c:${p.color}">
       <div class="ptop" data-act="player" data-id="${p.id}">
@@ -254,6 +266,9 @@ function viewPlayers() {
         <span class="bal ${p.balance < 0 ? 'neg' : ''}"><span class="num">${p.balance.toLocaleString('en')}</span>${G.currency ? `<small>${esc(G.currency)}</small>` : ''}</span>
       </div>
       ${st.props.length ? `<div class="mini-props">${miniProps(st.props)}</div>` : ''}
+      ${p.balance < 0 ? `<div class="debt-bar">${I('alert')}<div><b>عليه ${fmt(-p.balance)}</b><small>لازم يسدد أو يعلن إفلاسه</small></div>
+        <button class="btn sm danger" data-act="debt" data-id="${p.id}">سدّد الدين</button></div>` : ''}
+      ${jailBar(p)}
       <div class="pbtns">
         <button class="act go" data-act="go" data-id="${p.id}"><i>${I('flag')}</i><b>+${G.goAmount.toLocaleString('en')}</b><small>البداية</small></button>
         <button class="act in" data-act="money" data-mode="in" data-id="${p.id}"><i>${I('plus')}</i><b>إضافة</b><small>من البنك</small></button>
@@ -262,7 +277,12 @@ function viewPlayers() {
       </div>
     </div>`;
   }
-  h += `</div><div class="card add-player"><h3>${I('plus')} إضافة لاعب</h3>
+  h += '</div>';
+  const outs = G.players.filter(p => p.out);
+  if (outs.length) h += `<div class="card out-list"><h3>${I('alert')} طلعوا من اللعبة</h3>${outs.map(p => `
+    <div class="out-row" style="--c:${p.color}"><span class="avatar">${esc(p.name.trim()[0] || '?')}</span><b>${esc(p.name)}</b>
+    <span class="muted small">أفلس${p.outTo ? ' لـ ' + esc(nameOf(p.outTo)) : ''} · ${timeStr(p.outAt || Date.now())}</span></div>`).join('')}</div>`;
+  h += `<div class="card add-player"><h3>${I('plus')} إضافة لاعب</h3>
     <div class="row"><input id="newPlayer" placeholder="اسم اللاعب" enterkeyhint="done" autocomplete="off">
     <button class="btn" data-act="addPlayer" style="flex:none;min-width:96px">إضافة</button></div></div>`;
   return h;
@@ -366,7 +386,7 @@ function amountField(id, val = '') {
     <button class="chip" data-act="clrAmt" data-for="${id}">مسح</button></div>`;
 }
 function playerSelect(id, exclude, withBank, selected) {
-  const opts = G.players.filter(p => p.id !== exclude).map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)} (${fmt(p.balance)})</option>`);
+  const opts = active().filter(p => p.id !== exclude).map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)} (${fmt(p.balance)})</option>`);
   if (withBank) opts.unshift(`<option value="bank">${I('bank')} البنك</option>`);
   return `<select id="${id}">${opts.join('')}</select>`;
 }
@@ -377,7 +397,7 @@ function sheetMoney(mode, pid) {
     ? ['بطاقة حظ', 'صندوق الجماعة', 'رهن', 'بيع']
     : mode === 'out' ? ['بطاقة حظ', 'صندوق الجماعة', 'شراء', 'السجن'] : ['إيجار', 'شراء', 'بطاقة حظ', 'دين'];
   const title = mode === 'in' ? `${I('plus')} البنك يعطي ${esc(p.name)}` : mode === 'out' ? `${I('minus')} ${esc(p.name)} يدفع للبنك` : `${I('swap')} ${esc(p.name)} يحوّل`;
-  if (mode === 'pay' && G.players.length < 2) return toast('لازم يكون فيه لاعب ثاني');
+  if (mode === 'pay' && active().length < 2) return toast('لازم يكون فيه لاعب ثاني');
   openSheet(title, `
     <div class="card">
       <p class="muted small" style="margin-top:0">رصيد ${esc(p.name)} الحين: <b>${fmt(p.balance)}</b></p>
@@ -403,6 +423,17 @@ function sheetPlayer(pid) {
     </div>
     <div class="card"><h3>البطاقات</h3>${list || '<p class="muted">ما عنده بطاقات</p>'}</div>
     <button class="quick-btn" data-act="quick" data-from="${pid}">${I('zap')} عملية لـ ${esc(p.name)}</button>
+    <div class="card"><h3>${I('lock')} السجن</h3>
+      ${p.jail ? `<p style="margin-top:0"><b>في السجن</b> · الدور ${p.jail} من 3</p>` : '<p class="muted small" style="margin-top:0">مو في السجن</p>'}
+      <div class="row wrap">
+        ${p.jail ? `<button class="btn ghost" data-act="jailOut" data-id="${pid}">${I('unlock')} طلع (جاب دبل)</button>` : `<button class="btn ghost" data-act="jailIn" data-id="${pid}">${I('lock')} دخل السجن</button>`}
+      </div>
+      <label class="f">بطاقات الخروج من السجن مجانا</label>
+      <div class="lvl"><button class="btn danger" data-act="freeCard" data-d="-1" data-id="${pid}" ${(p.freeCards || 0) <= 0 ? 'disabled' : ''}>${I('minus')}</button>
+        <span class="show">${p.freeCards || 0}</span>
+        <button class="btn" data-act="freeCard" data-d="1" data-id="${pid}">${I('plus')}</button></div>
+    </div>
+    ${p.balance < 0 ? `<button class="btn danger" style="width:100%;margin-bottom:14px" data-act="debt" data-id="${pid}">${I('alert')} عليه ${fmt(-p.balance)} — سدّد الدين</button>` : ''}
     <div class="card"><h3>تعديل</h3>
       <label class="f">الاسم</label><input id="pName" value="${esc(p.name)}">
       <label class="f">اللون</label>
@@ -452,7 +483,7 @@ function sheetProp(id) {
     const r = rentOf(p);
     body += `<div class="card"><h3>${I('user')} المالك: <span style="color:${o.color}">${esc(o.name)}</span></h3>
       ${p.mortgaged ? '<p class="badge" style="font-size:14px">البطاقة مرهونة — ما فيها إيجار</p>' : ''}
-      ${!p.mortgaged && G.players.length > 1 ? `
+      ${!p.mortgaged && active().length > 1 ? `
       <div class="section" style="border:0;margin:0;padding:0">
         <label class="f">${I('coins')} دفع الإيجار — مين وقف عليها؟</label>${playerSelect('rPayer', p.owner)}
         ${type === 'utility' ? `<label class="f">كم مجموع النرد؟</label><input id="rDice" type="number" inputmode="numeric" placeholder="مثلا 7">` : ''}
@@ -475,7 +506,7 @@ function sheetProp(id) {
       </div>
 
       <div class="section"><h3>${I('swap')} نقلها للاعب ثاني</h3>
-        ${G.players.length > 1 ? `${playerSelect('tTo', p.owner)}
+        ${active().length > 1 ? `${playerSelect('tTo', p.owner)}
         <label class="f">بكم؟ (0 لو تبادل بدون فلوس)</label>${amountField('tPrice', 0)}
         <button class="btn blue" style="width:100%;margin-top:10px" data-act="trade" data-id="${id}">${I('check')} تم النقل</button>` : '<p class="muted small">ما فيه لاعب ثاني</p>'}
         <button class="btn ghost" style="width:100%;margin-top:8px" data-act="toBank" data-id="${id}">${I('bank')} رجّعها للبنك</button>
@@ -686,7 +717,7 @@ let Q = null;
 
 // وش ينفع لكل سبب: مين يدفع، مين ياخذ، وأي بطاقات تطلع
 function qRules(r) {
-  const players = G.players.map(p => p.id);
+  const players = active().map(p => p.id);
   const all = ['bank', ...players];
   switch (r) {
     case 'rent': return { from: players, to: players, needCard: true };
@@ -755,7 +786,7 @@ function sheetQuick(pre = {}) {
 }
 function renderQuick() {
   const R = qRules(Q.reason);
-  const who = (side, list, sel, other) => `<div class="who">${['bank', ...G.players.map(p => p.id)].map(id => {
+  const who = (side, list, sel, other) => `<div class="who">${['bank', ...active().map(p => p.id)].map(id => {
     const ok = list.includes(id) && id !== other;
     const p = id === 'bank' ? { name: 'البنك', color: '#0e4d2f' } : player(id);
     return `<button class="${sel === id ? 'on' : ''}" style="--c:${p.color}" data-act="qPick" data-side="${side}" data-v="${id}" ${ok ? '' : 'disabled'}>
@@ -858,11 +889,147 @@ function qRefreshResult() {
   $('[data-act=qDo]').disabled = !ready;
 }
 
+/* ---------------- السجن ---------------- */
+function jailBar(p) {
+  if (p.jail) {
+    const last = p.jail >= 3;
+    return `<div class="jail-bar ${last ? 'last' : ''}">
+      <div class="jb-h">${I('lock')}<b>في السجن</b><span class="jb-turns">${[1, 2, 3].map(i => `<i class="${i <= p.jail ? 'on' : ''}"></i>`).join('')}</span>
+        <small>${last ? 'آخر دور — لو ما جاب دبل يدفع ويطلع' : `الدور ${p.jail} من 3`}</small></div>
+      <div class="jb-btns">
+        ${last ? '' : `<button class="chip" data-act="jailTurn" data-id="${p.id}">${I('dice')} ما جاب دبل</button>`}
+        <button class="chip" data-act="jailOut" data-id="${p.id}">${I('unlock')} جاب دبل</button>
+        <button class="chip gold" data-act="jailPay" data-id="${p.id}">${I('cash')} دفع ${fmt(JAIL_FEE)} وطلع</button>
+        ${p.freeCards ? `<button class="chip blue" data-act="jailCard" data-id="${p.id}">${I('card')} استخدم بطاقة الخروج (${p.freeCards})</button>` : ''}
+      </div></div>`;
+  }
+  return `<div class="jail-mini">
+    <button class="chip" data-act="jailIn" data-id="${p.id}">${I('lock')} دخل السجن</button>
+    ${p.freeCards ? `<span class="chip on">${I('card')} معه بطاقة خروج ×${p.freeCards}</span>` : ''}</div>`;
+}
+
+/* ---------------- الدين والإفلاس ---------------- */
+// قيمة البيت لما ينباع = نص سعره
+const sellValue = q => Math.round(q.house / 2);
+function canRaise(pid) {
+  const mine = G.props.filter(q => q.owner === pid);
+  const houses = mine.reduce((s, q) => s + (q.level ? q.level * sellValue(q) : 0), 0);
+  const morts = mine.filter(q => !q.mortgaged).reduce((s, q) => s + q.mortgage, 0);
+  return houses + morts;
+}
+function sheetDebt(pid) {
+  const p = player(pid);
+  if (!p || p.out) return;
+  if (p.balance >= 0) { closeSheet(); return toast(`${p.name} سدّد الدين`); }
+  const mine = G.props.filter(q => q.owner === pid);
+  const withHouses = mine.filter(q => q.level > 0);
+  const groupHasHouses = q => G.props.some(x => x.group === q.group && x.owner === pid && x.level > 0);
+  const mortable = mine.filter(q => !q.mortgaged && !q.level);
+  const raise = canRaise(pid), need = -p.balance;
+  const to = p.debtTo || 'bank';
+  const row = (q, btn) => `<div class="debt-row" style="--c:${groupOf(q.group).color}"><span class="dot"></span><span class="nm">${esc(q.name)} ${levelText(q.level)}</span>${btn}</div>`;
+  openSheet(`${I('alert')} ${esc(p.name)} ما يكفيه`, `
+    <div class="card debt-card">
+      <div class="debt-big">عليه <b>${fmt(need)}</b></div>
+      <p class="muted small" style="margin:4px 0 0">الدين لـ <b>${esc(nameOf(to))}</b> · يقدر يجمع لين <b>${fmt(raise)}</b> لو رهن وباع كل شي</p>
+      ${raise < need ? `<p class="debt-warn">${I('alert')} حتى لو باع كل شي ما يكفيه — غالبا لازم يعلن إفلاسه</p>` : ''}
+    </div>
+    ${withHouses.length ? `<div class="card"><h3>${I('house')} يبيع بيوت <small class="muted">(البيت بنص سعره)</small></h3>
+      ${withHouses.map(q => row(q, `<button class="btn sm" data-act="debtSell" data-id="${q.id}">بيع ${q.level === 5 ? 'الفندق' : 'بيت'} +${fmt(sellValue(q))}</button>`)).join('')}</div>` : ''}
+    <div class="card"><h3>${I('tag')} يرهن بطاقة</h3>
+      ${mortable.length ? mortable.map(q => row(q, groupHasHouses(q)
+        ? `<span class="muted small">بيع بيوت اللون أول</span>`
+        : `<button class="btn sm" data-act="debtMort" data-id="${q.id}">ارهن +${fmt(q.mortgage)}</button>`)).join('')
+      : '<p class="muted small">ما عنده بطاقات ينفع يرهنها</p>'}</div>
+    <div class="card bankrupt-card"><h3>${I('alert')} يعلن إفلاسه</h3>
+      <p class="muted small" style="margin-top:0">يطلع من اللعبة، وكل فلوسه وبطاقاته تروح للي عليه الدين.</p>
+      <label class="f">الدين لمين؟</label>${playerSelect('bkTo', pid, true, to)}
+      <button class="btn danger" style="width:100%;margin-top:10px" data-act="bankrupt" data-id="${pid}">${I('alert')} أعلن إفلاس ${esc(p.name)}</button>
+    </div>`);
+  if (to === 'bank') $('#bkTo').value = 'bank';
+}
+function doBankrupt(pid, to) {
+  const p = player(pid), c = to === 'bank' ? null : player(to);
+  const mine = G.props.filter(q => q.owner === pid);
+  const nCards = mine.length, nHouses = mine.reduce((s, q) => s + (q.level === 5 ? 0 : q.level), 0), nHotels = mine.filter(q => q.level === 5).length;
+  act(`${p.name} أعلن إفلاسه${c ? ' لـ ' + c.name : ' للبنك'}`, 'alert', () => {
+    // البيوت ترجع للبنك بنص سعرها
+    mine.forEach(q => { if (q.level) { p.balance += q.level * sellValue(q); q.level = 0; } });
+    if (c) {
+      c.balance += p.balance;           // ياخذ كل اللي عنده (والناقص من الدين يروح)
+      mine.forEach(q => { q.owner = c.id; });
+    } else {
+      mine.forEach(q => Object.assign(q, { owner: null, level: 0, mortgaged: false }));
+    }
+    p.balance = 0; p.out = true; p.outAt = Date.now(); p.outTo = to; p.jail = 0; p.debtTo = null;
+    if (c && p.freeCards) { c.freeCards = (c.freeCards || 0) + p.freeCards; }
+    p.freeCards = 0;
+    const left = active();
+    hint(`${c
+      ? `خلّ <b>${esc(p.name)}</b> يعطي <b>${esc(c.name)}</b> كل فلوسه و${nCards} بطاقة${nCards ? ' (المرهونة تبقى مرهونة)' : ''}`
+      : `خذ من <b>${esc(p.name)}</b> كل فلوسه و${nCards} بطاقة ورجّعها للبنك`}${nHouses || nHotels ? `، ورجّع ${nHouses ? nHouses + ' بيت' : ''}${nHouses && nHotels ? ' و' : ''}${nHotels ? nHotels + ' فندق' : ''} للبنك` : ''}
+      ${left.length === 1 ? `<br><span class="winner">${I('crown')} <b>${esc(left[0].name)}</b> فاز باللعبة!</span>` : ''}`);
+  });
+}
+
 /* ---------------- الأحداث ---------------- */
 const val = id => $('#' + id)?.value ?? '';
 
 const actions = {
   close: closeSheet,
+  debt: d => sheetDebt(d.id),
+  debtSell(d) {
+    const q = prop(d.id), v = sellValue(q), owner = q.owner;
+    act(`${nameOf(owner)} باع ${q.level === 5 ? 'الفندق' : 'بيت'} من ${q.name} عشان يسدد (+${fmt(v)})`, 'minus', () => {
+      move('bank', owner, v); q.level -= 1;
+      hint(q.level === 4 ? `خذ منه الفندق وأعطه 4 بيوت` : `خذ منه بيت من <b>${esc(q.name)}</b>`);
+    });
+    pendingDebt = null; hideInstructionLater(owner);
+  },
+  debtMort(d) {
+    const q = prop(d.id), owner = q.owner;
+    act(`${nameOf(owner)} رهن ${q.name} عشان يسدد (+${fmt(q.mortgage)})`, 'tag', () => {
+      move('bank', owner, q.mortgage); q.mortgaged = true;
+      hint(`اقلب بطاقة <b>${esc(q.name)}</b> على وجه «مرهونة»`);
+    });
+    pendingDebt = null; hideInstructionLater(owner);
+  },
+  bankrupt(d) {
+    const p = player(d.id), to = val('bkTo') || 'bank';
+    if (!confirm(`متأكد ${p.name} يعلن إفلاسه؟\nيطلع من اللعبة وكل شي عنده يروح لـ ${nameOf(to)}.\n(تقدر تتراجع بعدين)`)) return;
+    closeSheet(); doBankrupt(d.id, to);
+  },
+  jailIn(d) {
+    const p = player(d.id);
+    act(`${p.name} دخل السجن`, 'lock', () => { p.jail = 1; });
+  },
+  jailTurn(d) {
+    const p = player(d.id);
+    act(`${p.name} ما جاب دبل — الدور ${p.jail + 1} في السجن`, 'lock', () => { p.jail = Math.min(3, p.jail + 1); });
+  },
+  jailOut(d) {
+    const p = player(d.id);
+    act(`${p.name} طلع من السجن`, 'unlock', () => { p.jail = 0; });
+    if ($('#sheetOverlay').classList.contains('show')) sheetPlayer(d.id);
+  },
+  jailPay(d) {
+    const p = player(d.id);
+    act(`${p.name} دفع ${fmt(JAIL_FEE)} وطلع من السجن`, 'unlock', () => { move(p.id, 'bank', JAIL_FEE); p.jail = 0; });
+  },
+  jailCard(d) {
+    const p = player(d.id);
+    act(`${p.name} استخدم بطاقة الخروج من السجن`, 'unlock', () => {
+      p.jail = 0; p.freeCards = Math.max(0, (p.freeCards || 0) - 1);
+      hint(`خذ منه بطاقة «الخروج من السجن مجانا» ورجّعها تحت الكومة`);
+    });
+  },
+  freeCard(d) {
+    const p = player(d.id), dir = num(d.d);
+    act(dir > 0 ? `${p.name} أخذ بطاقة خروج من السجن مجانا` : `${p.name} رجّع بطاقة الخروج من السجن`, 'card', () => {
+      p.freeCards = Math.max(0, (p.freeCards || 0) + dir);
+    });
+    sheetPlayer(d.id);
+  },
   quick: d => sheetQuick(d.from ? { from: d.from } : {}),
   qReason(d) { Q.reason = d.v; Q.card = null; Q.amount = ''; Q.dice = ''; qAuto(); renderQuick(); },
   qPick(d) {

@@ -571,3 +571,50 @@ h2 .ic { color: var(--gold); }
 .toast { font-weight: 600; background: #0e2a20; border: 1px solid rgba(217, 184, 102, .3); }
 .stamp { font-weight: 700; }
 .x .ic { width: 18px; height: 18px; }
+
+/* ===== الدين والإفلاس ===== */
+.debt-bar {
+  display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 14px;
+  background: color-mix(in srgb, var(--danger) 9%, var(--card)); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line)); color: var(--danger);
+}
+.debt-bar > .ic { width: 22px; height: 22px; }
+.debt-bar div { flex: 1; display: flex; flex-direction: column; }
+.debt-bar small { color: var(--muted); font-size: 12px; }
+.debt-card { text-align: center; border-color: color-mix(in srgb, var(--danger) 30%, var(--line)); }
+.debt-big { font-size: 20px; font-weight: 600; }
+.debt-big b { font-size: 34px; color: var(--danger); display: block; direction: ltr; }
+.debt-warn { color: var(--danger); font-weight: 600; font-size: 14px; margin: 10px 0 0; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.debt-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.debt-row:last-child { border-bottom: 0; }
+.debt-row .dot { width: 12px; height: 12px; border-radius: 4px; background: var(--c); flex: none; }
+.debt-row .nm { flex: 1; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.debt-row .btn { flex: none; }
+.bankrupt-card { border-color: color-mix(in srgb, var(--danger) 25%, var(--line)); }
+.out-list .out-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; opacity: .6; filter: grayscale(.6); }
+.out-row .avatar { width: 34px; height: 34px; font-size: 15px; }
+.out-row b { text-decoration: line-through; }
+.winner { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 22px; color: var(--gold); }
+.winner .ic { width: 28px; height: 28px; }
+
+/* ===== السجن ===== */
+.jail-mini { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.jail-mini .chip { font-size: 13px; padding: 4px 10px; color: var(--muted); }
+.jail-mini .chip.on { color: #fff; }
+.jail-bar {
+  margin-top: 12px; padding: 12px; border-radius: 14px; color: var(--ink);
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink) 4%, var(--card)) 0 10px, var(--card) 10px 20px);
+  border: 1.5px solid color-mix(in srgb, var(--ink) 25%, var(--line));
+}
+.jail-bar.last { border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); }
+.jb-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.jb-h > .ic { width: 20px; height: 20px; }
+.jb-h small { color: var(--muted); font-size: 12.5px; flex-basis: 100%; }
+.jail-bar.last .jb-h small { color: var(--danger); font-weight: 600; }
+.jb-turns { display: inline-flex; gap: 4px; margin-inline-start: auto; }
+.jb-turns i { width: 18px; height: 6px; border-radius: 3px; background: var(--line); }
+.jb-turns i.on { background: var(--ink); }
+.jail-bar.last .jb-turns i.on { background: var(--danger); }
+.jb-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.jb-btns .chip { font-size: 13px; padding: 6px 11px; }
+.chip.gold { background: color-mix(in srgb, var(--gold) 14%, var(--card)); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); color: #6d5219; }
+.chip.blue { background: color-mix(in srgb, var(--blue) 10%, var(--card)); border-color: color-mix(in srgb, var(--blue) 35%, var(--line)); color: var(--blue); }
