@@ -3,7 +3,7 @@
    مساعد البنك — كل البيانات تنحفظ في الجهاز (localStorage + IndexedDB للصور)
    ============================================================ */
 
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 const KEY = 'bankhelper:v1';
 const UNDO_KEY = id => KEY + ':undo:' + id;
 const UNDO_LIMIT = 40;
@@ -380,6 +380,7 @@ function viewMore() {
   <div class="card"><h3>${I('sparkle')} أخرى</h3>
     <div class="row wrap">
       <button class="btn ghost" data-act="resetGame">${I('refresh')} إعادة اللعبة من الصفر</button>
+      <button class="btn danger" data-act="wipeGame" style="flex-basis:100%">${I('trash')} حذف كل شي (حتى اللاعبين)</button>
       <button class="btn ghost" data-act="resetProps">${I('card')} رجّع البطاقات الأصلية</button>
     </div></div></div>`;
 }
@@ -1257,6 +1258,17 @@ const actions = {
   },
   gotoNotes() { tab = 'more'; render(); setTimeout(() => { $('#notesCard')?.scrollIntoView({ block: 'center' }); $('#gNote')?.focus(); }, 50); },
   gotoGames() { tab = 'more'; render(); setTimeout(() => $('.game-item')?.scrollIntoView({ block: 'center' }), 50); },
+  async wipeGame() {
+    const n = G.players.length;
+    if (!confirm(`تحذف كل شي في "${G.name}"؟\n\nبينحذف: ${n} لاعب، وكل الفلوس، والبطاقات ترجع للبنك، والسجل، والملاحظات، وصور الطاولة.\n\nنصيحة: احفظ نسخة في ملف قبل.`)) return;
+    if (!confirm('متأكد؟ ما تقدر ترجعها بعدين.')) return;
+    for (const ph of G.photos) await idb.del(ph.id).catch(() => { });
+    G.players = []; G.log = []; G.photos = []; G.notes = '';
+    G.props.forEach(p => Object.assign(p, { owner: null, level: 0, mortgaged: false }));
+    setUndo([]);
+    tab = 'players'; save(); render(); window.scrollTo(0, 0);
+    toast('انحذف كل شي — اللعبة صارت فاضية');
+  },
   resetGame() {
     if (!confirm('ترجع كل اللاعبين لفلوس البداية وكل البطاقات للبنك؟ (تقدر تتراجع)')) return;
     act('إعادة اللعبة من الصفر', 'refresh', () => {
