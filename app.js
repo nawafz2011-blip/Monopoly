@@ -254,6 +254,7 @@ function viewPlayers() {
         ${others ? `<button class="btn ghost" data-act="gotoGames">${I('dice')} الألعاب اللي في هذا الجهاز (${others})</button>` : ''}
       </div></div>`;
   }
+  if (G.notes && G.notes.trim()) h += `<button class="gnote" data-act="gotoNotes"><span class="gn-h">${I('pencil')} ملاحظات اللعبة</span><span class="gn-t">${esc(G.notes)}</span></button>`;
   if (G.players.length) h += `<button class="quick-btn" data-act="quick">${I('zap')} عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
   for (const p of active()) {
@@ -268,6 +269,7 @@ function viewPlayers() {
       ${st.props.length ? `<div class="mini-props">${miniProps(st.props)}</div>` : ''}
       ${p.balance < 0 ? `<div class="debt-bar">${I('alert')}<div><b>عليه ${fmt(-p.balance)}</b><small>لازم يسدد أو يعلن إفلاسه</small></div>
         <button class="btn sm danger" data-act="debt" data-id="${p.id}">سدّد الدين</button></div>` : ''}
+      ${p.note ? `<button class="pnote" data-act="player" data-id="${p.id}">${I('pencil')}<span>${esc(p.note)}</span></button>` : ''}
       ${jailBar(p)}
       <div class="pbtns">
         <button class="act go" data-act="go" data-id="${p.id}"><i>${I('flag')}</i><b>+${G.goAmount.toLocaleString('en')}</b><small>البداية</small></button>
@@ -330,6 +332,10 @@ function viewLog() {
 function viewMore() {
   const games = Object.values(store.games).sort((a, b) => b.updated - a.updated);
   return `<div class="more-grid">
+  <div class="card" id="notesCard"><h3>${I('pencil')} ملاحظات اللعبة</h3>
+    <textarea id="gNote" rows="4" placeholder="مثلا: القوانين اللي متفقين عليها، أو: وقفنا والدور على محمد">${esc(G.notes || '')}</textarea>
+    <p class="muted small note-saved" id="gNoteSaved">تنحفظ لحالها وتطلع لك لما ترجّع اللعبة</p></div>
+
   <div class="card"><h3>${I('camera')} صور الطاولة</h3>
     <p class="muted small">صوّر اللوحة قبل لا توقفون عشان تعرفون كل واحد وين كان، والصورة تنحفظ مع اللعبة.</p>
     <button class="btn gold" data-act="photo" style="width:100%">${I('camera')} صوّر الطاولة الحين</button>
@@ -378,7 +384,11 @@ function openSheet(title, body) {
   $('#sheetOverlay').classList.add('show');
   $('#sheet').scrollTop = 0;
 }
-function closeSheet() { $('#sheetOverlay').classList.remove('show'); lastAmountInput = null; }
+function closeSheet() {
+  const wasNote = !!$('#pNote');
+  $('#sheetOverlay').classList.remove('show'); lastAmountInput = null;
+  if (wasNote) { clearTimeout(noteTimer); save(); render(); }
+}
 
 function amountField(id, val = '') {
   return `<input id="${id}" class="big-amount" type="number" inputmode="numeric" placeholder="0" value="${val}" data-amount>
@@ -434,6 +444,9 @@ function sheetPlayer(pid) {
         <button class="btn" data-act="freeCard" data-d="1" data-id="${pid}">${I('plus')}</button></div>
     </div>
     ${p.balance < 0 ? `<button class="btn danger" style="width:100%;margin-bottom:14px" data-act="debt" data-id="${pid}">${I('alert')} عليه ${fmt(-p.balance)} — سدّد الدين</button>` : ''}
+    <div class="card"><h3>${I('pencil')} ملاحظات عن ${esc(p.name)}</h3>
+      <textarea id="pNote" data-id="${pid}" rows="3" placeholder="مثلا: متفق مع خالد ما ياخذ منه إيجار على المحطات">${esc(p.note || '')}</textarea>
+      <p class="muted small note-saved" id="pNoteSaved">تنحفظ لحالها وأنت تكتب</p></div>
     <div class="card"><h3>تعديل</h3>
       <label class="f">الاسم</label><input id="pName" value="${esc(p.name)}">
       <label class="f">اللون</label>
@@ -656,6 +669,9 @@ async function showRestored(d, count) {
       <p class="muted small" style="margin:0 0 10px">آخر مرة لعبتوا: ${dateStr(G.updated)}${count > 1 ? ` · وفي الملف ${count} ألعاب (تلقاها في المزيد)` : ''}</p>
       ${rows || '<p class="muted">ما فيها لاعبين</p>'}
       ${last ? `<p class="small" style="margin:12px 0 0">${I('list')} آخر عملية: <b>${esc(last.text)}</b></p>` : ''}</div>
+    ${(G.notes && G.notes.trim()) || G.players.some(p => p.note) ? `<div class="card"><h3>${I('pencil')} الملاحظات</h3>
+      ${G.notes && G.notes.trim() ? `<p class="note-text">${esc(G.notes)}</p>` : ''}
+      ${G.players.filter(p => p.note).map(p => `<p class="note-text small"><b style="color:${p.color}">${esc(p.name)}:</b> ${esc(p.note)}</p>`).join('')}</div>` : ''}
     ${ph ? `<div class="card"><h3>${I('camera')} هذي آخر صورة للطاولة</h3><p class="muted small" style="margin-top:0">رجّعوا القطع مكانها مثل الصورة</p>
       <img class="full-photo" src="${await photoURL(ph.id)}" alt=""></div>` : `<p class="muted small">ما فيه صورة للطاولة في هذي النسخة. المرة الجاية صوّروا الطاولة من المزيد قبل لا توقفون.</p>`}
     <button class="btn" data-act="close" style="width:100%;font-size:18px">يلا نكمّل ${I('dice')}</button>`);
@@ -874,6 +890,17 @@ function qDo() {
   if (ok) closeSheet();
 }
 // نحفظ الكتابة بدون ما نعيد رسم الشاشة (عشان الكيبورد ما يسكر)
+let noteTimer = null;
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id !== 'pNote' && t.id !== 'gNote') return;
+  if (t.id === 'pNote') { const p = player(t.dataset.id); if (p) p.note = t.value; }
+  else G.notes = t.value;
+  const hintEl = $(t.id === 'pNote' ? '#pNoteSaved' : '#gNoteSaved');
+  if (hintEl) hintEl.textContent = 'يحفظ…';
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => { save(); if (hintEl) hintEl.textContent = 'انحفظت'; }, 500);
+});
 document.addEventListener('input', e => {
   if (!Q || !$('#sheetOverlay').classList.contains('show')) return;
   if (e.target.id === 'qAmt') { Q.amount = e.target.value; qRefreshResult(); }
@@ -1214,6 +1241,7 @@ const actions = {
   device(d) { setDevice(d.v); render(); toast('صار الشكل على: ' + (d.v === 'auto' ? 'تلقائي (' + DEVICES[window.AUTO_DEVICE] + ')' : DEVICES[d.v])); },
   export: exportAll,
   import: () => $('#importInput').click(),
+  gotoNotes() { tab = 'more'; render(); setTimeout(() => { $('#notesCard')?.scrollIntoView({ block: 'center' }); $('#gNote')?.focus(); }, 50); },
   gotoGames() { tab = 'more'; render(); setTimeout(() => $('.game-item')?.scrollIntoView({ block: 'center' }), 50); },
   resetGame() {
     if (!confirm('ترجع كل اللاعبين لفلوس البداية وكل البطاقات للبنك؟ (تقدر تتراجع)')) return;
