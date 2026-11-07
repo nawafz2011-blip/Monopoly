@@ -3,6 +3,7 @@
    مساعد البنك — كل البيانات تنحفظ في الجهاز (localStorage + IndexedDB للصور)
    ============================================================ */
 
+const APP_VERSION = 12;
 const KEY = 'bankhelper:v1';
 const UNDO_KEY = id => KEY + ':undo:' + id;
 const UNDO_LIMIT = 40;
@@ -332,6 +333,11 @@ function viewLog() {
 function viewMore() {
   const games = Object.values(store.games).sort((a, b) => b.updated - a.updated);
   return `<div class="more-grid">
+  <div class="card version-card"><div class="row">
+    <div><h3 style="margin:0">${I('refresh')} نسخة الموقع: ${APP_VERSION}</h3>
+    <p class="muted small" style="margin:4px 0 0">لو ما وصلك آخر تحديث، اضغط الزر. ألعابك ما تنمسح.</p></div>
+    <button class="btn ghost" data-act="forceUpdate" style="flex:none">تحديث الموقع</button></div></div>
+
   <div class="card" id="notesCard"><h3>${I('pencil')} ملاحظات اللعبة</h3>
     <textarea id="gNote" rows="4" placeholder="مثلا: القوانين اللي متفقين عليها، أو: وقفنا والدور على محمد">${esc(G.notes || '')}</textarea>
     <p class="muted small note-saved" id="gNoteSaved">تنحفظ لحالها وتطلع لك لما ترجّع اللعبة</p></div>
@@ -1241,6 +1247,14 @@ const actions = {
   device(d) { setDevice(d.v); render(); toast('صار الشكل على: ' + (d.v === 'auto' ? 'تلقائي (' + DEVICES[window.AUTO_DEVICE] + ')' : DEVICES[d.v])); },
   export: exportAll,
   import: () => $('#importInput').click(),
+  async forceUpdate() {
+    toast('يجيب آخر نسخة…');
+    try {
+      if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+      if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    } catch (e) { }
+    location.replace(location.pathname + '?u=' + Date.now());
+  },
   gotoNotes() { tab = 'more'; render(); setTimeout(() => { $('#notesCard')?.scrollIntoView({ block: 'center' }); $('#gNote')?.focus(); }, 50); },
   gotoGames() { tab = 'more'; render(); setTimeout(() => $('.game-item')?.scrollIntoView({ block: 'center' }), 50); },
   resetGame() {
