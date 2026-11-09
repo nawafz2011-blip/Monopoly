@@ -3,7 +3,7 @@
    مساعد البنك — كل البيانات تنحفظ في الجهاز (localStorage + IndexedDB للصور)
    ============================================================ */
 
-const APP_VERSION = 14;
+const APP_VERSION = 16;
 const KEY = 'bankhelper:v1';
 const UNDO_KEY = id => KEY + ':undo:' + id;
 const UNDO_LIMIT = 40;
@@ -86,11 +86,11 @@ function toast(msg) {
 }
 
 /* كل عملية تمر من هنا: تنحفظ نسخة للتراجع + تنكتب في السجل */
-let pendingMoves = [], pendingHint = '', pendingDebt = null;
+let pendingMoves = [], pendingHint = '', pendingDebt = null, pendingActions = [];
 const BILLS = [500, 100, 50, 20, 10, 5, 1];
 function act(text, icon, fn) {
-  const snap = JSON.stringify({ players: G.players, props: G.props, log: G.log });
-  pendingMoves = []; pendingHint = '';
+  const snap = JSON.stringify({ players: G.players, props: G.props, log: G.log, turn: G.turn || null, doubles: G.doubles || 0 });
+  pendingMoves = []; pendingHint = ''; pendingActions = [];
   const res = fn();
   if (res === false) return false;
   G.log.unshift({ id: uid(), t: Date.now(), text, icon });
@@ -99,14 +99,14 @@ function act(text, icon, fn) {
   // لو أحد صار رصيده بالسالب بسبب هذي العملية، نفتح له شاشة الدين بعد الرسالة
   const debtor = active().find(p => p.balance < 0 && pendingMoves.some(m => m.from === p.id));
   pendingDebt = debtor ? debtor.id : null;
-  if (pendingMoves.length || pendingHint) showInstruction(pendingMoves, pendingHint);
+  if (pendingMoves.length || pendingHint || pendingActions.length) showInstruction(pendingMoves, pendingHint, pendingActions);
   else { toast(text); if (pendingDebt) { const d = pendingDebt; pendingDebt = null; setTimeout(() => sheetDebt(d), 300); } }
   pendingMoves = []; pendingHint = '';
   return true;
 }
 
 /* رسالة كبيرة للبنكي: وش يسوي بالفلوس الورق */
-function showInstruction(moves, hint) {
+function showInstruction(moves, hint, acts = []) {
   const P = id => {
     const p = id === 'bank' ? { name: 'البنك', color: '#0e4d2f' } : player(id);
     return `<b class="iname" style="--c:${p.color}">${esc(p.name)}</b>`;
@@ -126,7 +126,13 @@ function showInstruction(moves, hint) {
       <div class="ch-res"><span class="ch-given">عطى: <b>0</b></span><span class="ch-out muted">اضغط الورق اللي عطاك</span></div>
     </div>` : '';
   $('#instrBox').innerHTML = `${lines}${hint ? `<div class="ihint">${hint}</div>` : ''}${change}
-    <button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ${I('check')}</button>`;
+    ${acts.length ? `<div class="iacts">${acts.map((x, i) => `<button class="btn ${x.cls || ''}" data-iact="${i}">${x.label}</button>`).join('')}</div>`
+      : `<button class="btn" id="instrOk" style="width:100%;margin-top:14px;font-size:19px;min-height:56px">تمام ${I('check')}</button>`}`;
+  $$('#instrBox [data-iact]').forEach(btn => btn.onclick = () => {
+    const x = acts[num(btn.dataset.iact)];
+    $('#instrOverlay').classList.remove('show');
+    actions[x.act]?.(x);
+  });
   let given = 0;
   const showChange = () => {
     const due = payer.amt, box = $('#instrBox .ch-res');
@@ -147,8 +153,7 @@ function showInstruction(moves, hint) {
   if (payer) $('#chGiven').oninput = e => { given = Math.max(0, num(e.target.value)); showChange(); };
   clearTimeout(toast._t); $('#toast').classList.remove('show');
   $('#instrOverlay').classList.add('show');
-  $('#instrOk').onclick = hideInstruction;
-  setTimeout(() => $('#instrOk')?.focus(), 30);
+  if ($('#instrOk')) { $('#instrOk').onclick = hideInstruction; setTimeout(() => $('#instrOk')?.focus(), 30); }
 }
 function hideInstructionLater(pid) {
   const back = () => { const p = player(pid); if (p && !p.out && p.balance < 0) sheetDebt(pid); else { closeSheet(); if (p) toast(`${p.name} سدّد الدين`); } };
@@ -166,6 +171,7 @@ function undo() {
   if (!confirm('تتراجع عن آخر عملية؟\n\n' + (last ? last.text : ''))) return;
   const s = JSON.parse(u.pop()); setUndo(u);
   G.players = s.players; G.props = s.props; G.log = s.log;
+  if ('turn' in s) { G.turn = s.turn; G.doubles = s.doubles; }
   save(); render(); closeSheet(); toast('تم التراجع');
 }
 
@@ -175,7 +181,7 @@ function move(from, to, amt) {
   if (to !== 'bank') player(to).balance += amt;
   pendingMoves.push({ from, to, amt });
 }
-const hint = (h) => { pendingHint = h; };
+const hint = (h) => { pendingHint += `<div class="hl">${h}</div>`; };
 function moneyText(from, to, amt, note) {
   const n = note ? ` (${note})` : '';
   if (from === 'bank') return `البنك أعطى ${nameOf(to)} ${fmt(amt)}${n}`;
@@ -258,6 +264,7 @@ function viewPlayers() {
   if (G.players.length) h += (G.notes && G.notes.trim())
     ? `<button class="gnote" data-act="gotoNotes"><span class="gn-h">${I('pencil')} ملاحظات اللعبة <small>اضغط عشان تعدل</small></span><span class="gn-t">${esc(G.notes)}</span></button>`
     : `<button class="gnote empty-note" data-act="gotoNotes"><span class="gn-h">${I('pencil')} ملاحظات اللعبة</span><span class="gn-t muted">اضغط هنا واكتب أي ملاحظة، مثل القوانين اللي متفقين عليها</span></button>`;
+  if (active().length) h += turnBox();
   if (G.players.length) h += `<button class="quick-btn" data-act="quick">${I('zap')} عملية جديدة <small>إيجار · رهن · شراء · تحويل</small></button>`;
   h += '<div class="pgrid-players">';
   for (const p of active()) {
@@ -266,7 +273,8 @@ function viewPlayers() {
       <div class="ptop" data-act="player" data-id="${p.id}">
         <span class="avatar">${esc(p.name.trim()[0] || '?')}</span>
         <div class="nm"><b>${esc(p.name)}</b>
-          <small><span>${I('card')} ${st.props.length}</span><span>${I('house')} ${st.houses}</span><span>${I('hotel')} ${st.hotels}</span></small></div>
+          <small><span>${I('card')} ${st.props.length}</span><span>${I('house')} ${st.houses}</span><span>${I('hotel')} ${st.hotels}</span></small>
+          <span class="where ${G.turn === p.id ? 'now' : ''}">${G.turn === p.id ? 'دوره · ' : ''}عند: ${esc(squareName(posOf(p)))}</span></div>
         <span class="bal ${p.balance < 0 ? 'neg' : ''}"><span class="num">${p.balance.toLocaleString('en')}</span>${G.currency ? `<small>${esc(G.currency)}</small>` : ''}</span>
       </div>
       ${st.props.length ? `<div class="mini-props">${miniProps(st.props)}</div>` : ''}
@@ -442,6 +450,7 @@ function sheetPlayer(pid) {
     </div>
     <div class="card"><h3>البطاقات</h3>${list || '<p class="muted">ما عنده بطاقات</p>'}</div>
     <button class="quick-btn" data-act="quick" data-from="${pid}">${I('zap')} عملية لـ ${esc(p.name)}</button>
+    <button class="btn ghost" style="width:100%;margin-bottom:14px" data-act="moveTo" data-id="${pid}">${I('arrow')} انقل لخانة (عند: ${esc(squareName(posOf(p)))})</button>
     <div class="card"><h3>${I('lock')} السجن</h3>
       ${p.jail ? `<p style="margin-top:0"><b>في السجن</b> · الدور ${p.jail} من 3</p>` : '<p class="muted small" style="margin-top:0">مو في السجن</p>'}
       <div class="row wrap">
@@ -1010,11 +1019,150 @@ function doBankrupt(pid, to) {
   });
 }
 
+
+/* ---------------- النرد والأدوار: الموقع يمشي كل لاعب على اللوحة ---------------- */
+const squareName = i => { const s = BOARD[i]; return s.t === 'prop' ? (prop(s.p)?.name || '؟') : s.name; };
+const posOf = p => (p.pos ?? 0);
+let dice = [0, 0];
+function turnPlayer() {
+  const list = active();
+  if (!list.length) return null;
+  let t = list.find(p => p.id === G.turn);
+  if (!t) { t = list[0]; G.turn = t.id; }
+  return t;
+}
+function nextTurn() {
+  const list = active();
+  if (!list.length) return;
+  const i = list.findIndex(p => p.id === G.turn);
+  G.turn = list[(i + 1) % list.length].id;
+  G.doubles = 0;
+}
+function pips(v) {
+  const P = { 1: [[12, 12]], 2: [[7, 7], [17, 17]], 3: [[7, 7], [12, 12], [17, 17]], 4: [[7, 7], [17, 7], [7, 17], [17, 17]], 5: [[7, 7], [17, 7], [12, 12], [7, 17], [17, 17]], 6: [[7, 6], [17, 6], [7, 12], [17, 12], [7, 18], [17, 18]] }[v];
+  return `<svg viewBox="0 0 24 24" class="pip"><rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/>${P.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2" fill="currentColor"/>`).join('')}</svg>`;
+}
+function turnBox() {
+  const p = turnPlayer();
+  if (!p) return '';
+  const others = active().filter(x => x.id !== p.id);
+  const sum = dice[0] + dice[1], dbl = dice[0] && dice[0] === dice[1];
+  const die = k => `<div class="die-row">${[1, 2, 3, 4, 5, 6].map(v => `<button class="die ${dice[k] === v ? 'on' : ''}" data-act="die" data-k="${k}" data-v="${v}" aria-label="${v}">${pips(v)}</button>`).join('')}</div>`;
+  return `<div class="turn-card" style="--c:${p.color}">
+    <div class="tc-h">
+      <span class="avatar">${esc(p.name.trim()[0] || '?')}</span>
+      <div class="tc-who"><small>الدور على</small><b>${esc(p.name)}</b>
+        <span class="tc-pos">عند: <b>${esc(squareName(posOf(p)))}</b>${p.jail ? ` · <span class="neg">في السجن</span>` : ''}</span></div>
+      ${G.doubles ? `<span class="tc-dbl">دبل ×${G.doubles}</span>` : ''}
+    </div>
+    <div class="tc-label">وش طلع في النرد؟ <small>اختر رقم كل نرد</small></div>
+    ${die(0)}${die(1)}
+    <button class="btn tc-go" data-act="roll" ${dice[0] && dice[1] ? '' : 'disabled'}>
+      ${dice[0] && dice[1] ? `${I('dice')} مشّ ${esc(p.name)} ${sum} خانات${dbl ? ' — دبل!' : ''}` : 'اختر رقم النردين'}</button>
+    ${others.length ? `<div class="tc-skip"><span class="muted small">الدور غلط؟ خلّه على:</span>${others.map(o => `<button class="chip" data-act="setTurn" data-id="${o.id}">${esc(o.name)}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+
+// اللاعب وقف على خانة: وش يصير؟ (يشتغل داخل act عشان التراجع)
+function landOn(p, i, sum) {
+  const s = BOARD[i];
+  if (s.t === 'tax') {
+    move(p.id, 'bank', s.amount);
+    hint(`${I('receipt')} وقف على <b>${s.name}</b>`);
+  } else if (s.t === 'gotojail') {
+    p.pos = JAIL_POS; p.jail = 1;
+    hint(`${I('lock')} وقف على <b>روح للسجن</b> — حط قطعته في السجن (وما ياخذ 200)`);
+    return 'jail';
+  } else if (s.t === 'chance' || s.t === 'chest') {
+    hint(`${I('card')} وقف على <b>${s.name}</b> — خلّه يسحب بطاقة<small class="hl-sub">لو فيها فلوس سجّلها من «عملية جديدة»، ولو تحرّكه اضغط على اسمه ← «انقل لخانة»</small>`);
+  } else if (s.t === 'prop') {
+    const q = prop(s.p), owner = q && q.owner && player(q.owner);
+    if (!q) return;
+    if (!owner) {
+      hint(`${I('card')} وقف على <b>${esc(q.name)}</b> — عند البنك بـ <b>${fmt(q.price)}</b>. يشتريها؟`);
+      pendingActions.push({ label: `يشتريها بـ ${fmt(q.price)}`, act: 'landBuy', id: q.id, pid: p.id });
+      pendingActions.push({ label: 'لا، ما يبيها', act: 'landSkip', cls: 'ghost' });
+    } else if (owner.id === p.id) {
+      hint(`${I('house')} وقف على <b>${esc(q.name)}</b> — أرضه هو، ما يدفع شي`);
+    } else if (q.mortgaged || owner.out) {
+      hint(`${I('tag')} وقف على <b>${esc(q.name)}</b> حق ${esc(owner.name)} — مرهونة، ما فيها إيجار`);
+    } else {
+      const r = rentOf(q, sum);
+      move(p.id, owner.id, r);
+      const extra = q.level ? ` (${levelWords(q.level)})` : groupOf(q.group).type === 'utility' ? ` (النرد ${sum} × ${r / sum})` : (groupOf(q.group).type === 'street' && ownsFullSet(q) ? ' (ضعف — عنده اللون كامل)' : '');
+      hint(`${I('alert')} وقف على <b>${esc(q.name)}</b> حق <b style="color:${owner.color}">${esc(owner.name)}</b> — الإيجار <b>${fmt(r)}</b>${extra}`);
+    }
+  } else if (s.t === 'jail') {
+    hint(`وقف على <b>السجن</b> — زيارة بس، ما عليه شي`);
+  } else if (s.t === 'parking') {
+    hint(`وقف على <b>موقف السيارات</b> — ما عليه شي`);
+  } else if (s.t === 'go') {
+    hint(`وقف على <b>البداية</b> بالضبط`);
+  }
+}
+function doRoll() {
+  const p = turnPlayer(); if (!p) return;
+  const [a, b] = dice, sum = a + b, dbl = a === b;
+  const from = posOf(p), wasJailed = !!p.jail;
+  dice = [0, 0];
+  act(`${p.name} رمى ${a} و${b}`, 'dice', () => {
+    if (wasJailed) {
+      if (dbl) hint(`${I('unlock')} جاب دبل <b>وطلع من السجن</b>`);
+      else if (p.jail >= 3) { move(p.id, 'bank', JAIL_FEE); hint(`${I('unlock')} ثالث دور بدون دبل — <b>دفع ${fmt(JAIL_FEE)} وطلع</b>`); }
+      else { p.jail += 1; hint(`${I('lock')} ما جاب دبل — <b>يبقى في السجن</b> (الدور ${p.jail} من 3)`); nextTurn(); return; }
+      p.jail = 0; G.doubles = 0;
+    } else if (dbl) {
+      G.doubles = (G.doubles || 0) + 1;
+      if (G.doubles >= 3) { p.pos = JAIL_POS; p.jail = 1; hint(`${I('lock')} ثالث دبل ورا بعض — <b>يروح السجن</b> على طول`); nextTurn(); return; }
+    } else G.doubles = 0;
+    const to = (from + sum) % 40;
+    if (from + sum >= 40) { move('bank', p.id, G.goAmount); hint(`${I('flag')} مرّ على <b>البداية</b>`); }
+    p.pos = to;
+    hint(`${I('arrow')} مشى ${sum} خانات: من <b>${esc(squareName(from))}</b> إلى <b>${esc(squareName(to))}</b>`);
+    const res = landOn(p, to, sum);
+    if (res !== 'jail' && dbl && !wasJailed) hint(`<span class="again">${I('dice')} دبل! <b>${esc(p.name)}</b> يلعب مرة ثانية</span>`);
+    else nextTurn();
+  });
+}
+// تحريك يدوي (بطاقة حظ مثلا)
+function sheetMoveTo(pid) {
+  const p = player(pid);
+  openSheet(`${I('arrow')} انقل ${esc(p.name)} لخانة`, `<div class="card">
+    <p class="muted small" style="margin-top:0">الحين عند: <b>${esc(squareName(posOf(p)))}</b></p>
+    <label class="f">لوين؟</label>
+    <select id="mvTo">${BOARD.map((s, i) => `<option value="${i}" ${i === posOf(p) ? 'selected' : ''}>${i}. ${esc(squareName(i))}</option>`).join('')}</select>
+    <label class="row small" style="gap:8px;margin-top:12px;justify-content:flex-start"><input type="checkbox" id="mvGo" checked style="flex:none;width:20px;height:20px"> لو مرّ على البداية ياخذ ${fmt(G.goAmount)}</label>
+    <label class="row small" style="gap:8px;margin-top:8px;justify-content:flex-start"><input type="checkbox" id="mvLand" checked style="flex:none;width:20px;height:20px"> يدفع الإيجار أو يشتري لو وقف على أرض</label>
+  </div>
+  <button class="btn" style="width:100%" data-act="doMoveTo" data-id="${pid}">${I('check')} انقله</button>`);
+}
+
 /* ---------------- الأحداث ---------------- */
 const val = id => $('#' + id)?.value ?? '';
 
 const actions = {
   close: closeSheet,
+  die(d) { dice[num(d.k)] = num(d.v); render(); },
+  roll: () => doRoll(),
+  setTurn(d) { G.turn = d.id; G.doubles = 0; dice = [0, 0]; save(); render(); toast('الدور على ' + nameOf(d.id)); },
+  landBuy(x) {
+    const q = prop(x.id), b = x.pid;
+    if (q.owner) return;
+    act(`${nameOf(b)} اشترى ${q.name} من البنك بـ ${fmt(q.price)}`, 'card', () => { move(b, 'bank', q.price); q.owner = b; hint(`${I('card')} وأعطه بطاقة <b>${esc(q.name)}</b>`); });
+  },
+  landSkip() { toast('ما اشتراها — تقدر تسوي مزاد من «عملية جديدة» لو تبون'); },
+  moveTo: d => sheetMoveTo(d.id),
+  doMoveTo(d) {
+    const p = player(d.id), to = num(val('mvTo')), from = posOf(p);
+    const goOn = $('#mvGo').checked, passGo = goOn && to !== from && (to < from || to === 0), land = $('#mvLand').checked;
+    closeSheet();
+    act(`${p.name} انتقل من ${squareName(from)} إلى ${squareName(to)}`, 'arrow', () => {
+      if (passGo) { move('bank', p.id, G.goAmount); hint(`${I('flag')} مرّ على <b>البداية</b>`); }
+      p.pos = to;
+      hint(`${I('arrow')} انتقل إلى <b>${esc(squareName(to))}</b>`);
+      if (land) landOn(p, to, 7);
+    });
+  },
   debt: d => sheetDebt(d.id),
   debtSell(d) {
     const q = prop(d.id), v = sellValue(q), owner = q.owner;
@@ -1039,7 +1187,7 @@ const actions = {
   },
   jailIn(d) {
     const p = player(d.id);
-    act(`${p.name} دخل السجن`, 'lock', () => { p.jail = 1; });
+    act(`${p.name} دخل السجن`, 'lock', () => { p.jail = 1; p.pos = JAIL_POS; if (G.turn === p.id) nextTurn(); });
   },
   jailTurn(d) {
     const p = player(d.id);
@@ -1304,7 +1452,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'mAmt') return $('[data-act=doMoney]')?.click();
   const typing = /INPUT|TEXTAREA|SELECT/.test(e.target.tagName);
   const calcOpen = $('#calcOverlay').classList.contains('show');
-  if ($('#instrOverlay').classList.contains('show') && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); return hideInstruction(); }
+  if ($('#instrOverlay').classList.contains('show') && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); return $('#instrOk') ? $('#instrOk').click() : null; }
   if (e.key === 'Escape') { if (calcOpen) $('#calcOverlay').classList.remove('show'); else closeSheet(); return; }
   if (calcOpen && !typing) {
     const map = { '*': '×', '/': '÷', '-': '−', '+': '+', 'Enter': '=', '=': '=', 'Backspace': '⌫', 'Delete': 'C' };
