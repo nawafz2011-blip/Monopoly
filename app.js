@@ -3,7 +3,7 @@
    مساعد البنك — كل البيانات تنحفظ في الجهاز (localStorage + IndexedDB للصور)
    ============================================================ */
 
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 const KEY = 'bankhelper:v1';
 const UNDO_KEY = id => KEY + ':undo:' + id;
 const UNDO_LIMIT = 40;
@@ -230,6 +230,7 @@ function render() {
   if (tab === 'props') v.innerHTML = viewProps();
   if (tab === 'log') v.innerHTML = viewLog();
   if (tab === 'more') { v.innerHTML = viewMore(); loadPhotoThumbs(); }
+  if (tab === 'board') v.innerHTML = viewBoard();
 }
 
 function playerStats(pid) {
@@ -1137,11 +1138,79 @@ function sheetMoveTo(pid) {
   <button class="btn" style="width:100%" data-act="doMoveTo" data-id="${pid}">${I('check')} انقله</button>`);
 }
 
+
+/* ---------------- تبويب اللوحة: تشوف كل لاعب وين، وتحطه في خانته ---------------- */
+let boardSel = null, boardSq = null;
+const shortName = n => n.replace(/^(منطقة|طريق|شارع|ميدان|محطة|شركة)\s+/, '');
+const SQ_IC = { go: 'flag', jail: 'lock', parking: 'pause', gotojail: 'lock', chance: 'help', chest: 'gift', tax: 'receipt' };
+function cellPos(i) { // [صف، عمود] في شبكة 11×11 — البداية تحت يمين
+  return i <= 10 ? [10, 10 - i] : i <= 20 ? [10 - (i - 10), 0] : i <= 30 ? [0, i - 20] : [i - 30, 10];
+}
+function viewBoard() {
+  const ps = active();
+  let cells = '';
+  BOARD.forEach((s, i) => {
+    const [r, c] = cellPos(i);
+    const here = ps.filter(p => posOf(p) === i);
+    const q = s.t === 'prop' ? prop(s.p) : null, g = q && groupOf(q.group), o = q && q.owner && player(q.owner);
+    const label = q ? shortName(q.name) : s.name;
+    const icon = q ? (g.type === 'station' ? I('train') : g.type === 'utility' ? I(/water/i.test(q.en) ? 'drop' : 'bulb') : '') : I(SQ_IC[s.t] || 'flag');
+    cells += `<button class="bc ${i % 10 === 0 ? 'corner' : ''} ${boardSq === i ? 'sel' : ''} ${q && q.mortgaged ? 'mort' : ''}" style="grid-row:${r + 1};grid-column:${c + 1};${g && g.type === 'street' ? `--g:${g.color};` : ''}${o ? `--o:${o.color};` : ''}" data-act="bdSq" data-i="${i}">
+      ${g && g.type === 'street' ? '<span class="bband"></span>' : ''}
+      ${icon ? `<span class="bic">${icon}</span>` : ''}
+      <span class="bnm">${esc(label)}</span>
+      ${o ? '<span class="bown"></span>' : ''}
+      ${q && q.level ? `<span class="blv">${q.level === 5 ? 'H' : q.level}</span>` : ''}
+      ${here.length ? `<span class="btok">${here.map(p => `<i style="--c:${p.color}" class="${G.turn === p.id ? 'turn' : ''}">${esc(p.name.trim()[0] || '?')}</i>`).join('')}</span>` : ''}
+    </button>`;
+  });
+  const t = turnPlayer();
+  const sel = boardSel && player(boardSel);
+  const info = boardSq !== null ? squareInfo(boardSq) : '';
+  return `
+  <div class="bd-wrap"><div class="bd">${cells}
+    <div class="bd-center">
+      <b>${sel ? `اضغط الخانة اللي فيها <span style="color:${sel.color}">${esc(sel.name)}</span>` : 'اختر لاعب تحت، وبعدين اضغط خانته'}</b>
+      ${t ? `<small>الدور على ${esc(t.name)}</small>` : ''}
+    </div>
+  </div></div>
+  <div class="card bd-players">
+    <h3>${I('user')} مين تبي تحطه في خانته؟</h3>
+    <div class="who">${ps.map(p => `<button class="${boardSel === p.id ? 'on' : ''}" style="--c:${p.color}" data-act="bdPick" data-id="${p.id}">
+      <span class="av" style="background:${p.color}">${esc(p.name.trim()[0] || '?')}</span>${esc(p.name)}<small class="muted">${esc(shortName(squareName(posOf(p))))}</small></button>`).join('') || '<p class="muted">أضف لاعبين أول</p>'}</div>
+    <p class="muted small" style="margin-bottom:0">هذا بس يحط القطعة مكانها (لما تكملون لعبة قديمة مثلا) — ما يعطي 200 ولا ياخذ إيجار. للعب العادي استخدم النرد في صفحة اللاعبين.</p>
+  </div>
+  ${info}
+  ${ps.length ? `<div class="card"><h3>${I('dice')} الدور على مين؟</h3><div class="chips">${ps.map(p => `<button class="chip ${G.turn === p.id ? 'on' : ''}" data-act="setTurn" data-id="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}`;
+}
+function squareInfo(i) {
+  const s = BOARD[i], q = s.t === 'prop' ? prop(s.p) : null;
+  const here = active().filter(p => posOf(p) === i);
+  let body = '';
+  if (q) {
+    const o = q.owner && player(q.owner);
+    body = `<p style="margin:0">${o ? `المالك: <b style="color:${o.color}">${esc(o.name)}</b>` : 'عند البنك'} · السعر ${fmt(q.price)}${q.level ? ' · ' + levelWords(q.level) : ''}${q.mortgaged ? ' · <span class="neg">مرهونة</span>' : ''}</p>
+      <button class="btn ghost sm" style="margin-top:10px" data-act="prop" data-id="${q.id}">${I('card')} افتح البطاقة</button>`;
+  } else if (s.t === 'tax') body = `<p style="margin:0">ادفع ${fmt(s.amount)}</p>`;
+  return `<div class="card"><h3>${I('flag')} خانة ${i}: ${esc(squareName(i))}</h3>${body}
+    ${here.length ? `<p class="small" style="margin:10px 0 0">واقف فيها: ${here.map(p => `<b style="color:${p.color}">${esc(p.name)}</b>`).join('، ')}</p>` : ''}</div>`;
+}
+
 /* ---------------- الأحداث ---------------- */
 const val = id => $('#' + id)?.value ?? '';
 
 const actions = {
   close: closeSheet,
+  bdPick(d) { boardSel = boardSel === d.id ? null : d.id; render(); },
+  bdSq(d) {
+    const i = num(d.i);
+    if (boardSel) {
+      const p = player(boardSel), from = posOf(p);
+      boardSq = i; boardSel = null;
+      if (from === i) { render(); return toast(`${p.name} أصلا عند ${squareName(i)}`); }
+      act(`حطّينا ${p.name} عند ${squareName(i)}`, 'flag', () => { p.pos = i; });
+    } else { boardSq = boardSq === i ? null : i; render(); }
+  },
   die(d) { dice[num(d.k)] = num(d.v); render(); },
   roll: () => doRoll(),
   setTurn(d) { G.turn = d.id; G.doubles = 0; dice = [0, 0]; save(); render(); toast('الدور على ' + nameOf(d.id)); },
@@ -1463,7 +1532,7 @@ document.addEventListener('keydown', e => {
   if (typing) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); return undo(); }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const tabs = { '1': 'players', '2': 'props', '3': 'log', '4': 'more' };
+  const tabs = { '1': 'players', '2': 'board', '3': 'props', '4': 'log', '5': 'more' };
   if (tabs[e.key] && !$('#sheetOverlay').classList.contains('show')) { tab = tabs[e.key]; render(); window.scrollTo(0, 0); }
   if (e.key.toLowerCase() === 'c' || e.key === 'ؤ') $('#calcBtn').click();
 });
